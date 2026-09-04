@@ -1,0 +1,52 @@
+/* 空山 · 设计 Token —— 与 docs/DESIGN.md §2 一一对应，改动必须联动 */
+
+/* 书法体自托管（S24）：woff2 子集（仅项目文案用字，大陆可达，无外部依赖） */
+@font-face {
+  font-family: "Ma Shan Zheng";
+  src: url("/fonts/ma-shan-zheng-subset.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* 基础色板 */
+  --bg: #F7F5F0;
+  --card: #FFFFFF;
+  --primary: #2F6B4F;
+  --primary-dark: #1E4A36;
+  --primary-light: #E4EFE8;
+  --accent: #E8A15C;
+  --accent-light: #FBF1E4;
+  --text: #26332C;
+  --text-2: #7A8A80;
+  --border: #E5E1D8;
+  --input-bg: #FAF9F5;
+  --search-bg: #F0EEE7;
+
+  /* 情绪色（前景 / 浅底） */
+  --mood-shudong: #2F6B4F; --mood-shudong-bg: #E4EFE8;
+  --mood-kaixin: #D98E3F;  --mood-kaixin-bg: #FBF1E4;
+  --mood-nanguo: #5B7E9E;  --mood-nanguo-bg: #EBF2F8;
+  --mood-jiaolv: #9C7B9E;  --mood-jiaolv-bg: #F5EFF6;
+  --mood-ganwu: #4E8A6E;   --mood-ganwu-bg: #E9F3ED;
+
+  /* 字号阶梯 */
+  --fs-aux: 11px;
+  --fs-sub: 12px;
+  --fs-list: 13px;
+  --fs-body: 14px;
+  --fs-card-title: 15px;
+  --fs-page-title: 20px;
+  --fs-brand: 26px;
+
+  /* 字体：正文走系统栈（大陆必达）；书法体 P3 自托管子集 */
+  --font-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-brand: "Ma Shan Zheng", "STKaiti", "KaiTi", "STSong", serif;
+
+  /* 圆角与阴影 */
+  --r-card: 16px;
+  --r-panel: 12px;
+  --r-input: 8px;
+  --shadow-card: 0 2px 10px rgba(38, 51, 44, 0.07);
+}

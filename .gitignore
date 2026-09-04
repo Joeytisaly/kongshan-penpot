@@ -1,0 +1,14 @@
+# 密钥 —— 永不提交
+.dev.vars
+
+# 本地运行状态（含本地 D1 库/KV 数据）
+.wrangler/
+
+# 依赖与工具状态
+node_modules/
+.zcode/
+
+# 系统杂项
+.DS_Store
+Thumbs.db
+*.log

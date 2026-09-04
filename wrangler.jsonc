@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kongshan",
+  "main": "src/index.tsx",
+  "compatibility_date": "2026-09-04",
+  "assets": {
+    "directory": "./assets"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kongshan-db-prod",
+      "database_id": "becd0c71-cf5d-4210-8096-012a7000a940",
+      "migrations_dir": "src/db/migrations"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "e03afe9e8c5e478a99b34c469f2486dc"
+    }
+  ],
+  "triggers": {
+    "crons": ["*/10 * * * *"]
+  }
+  // P2 补充：AUTH_PEPPER 已用 wrangler secret 配置；站务页等
+}

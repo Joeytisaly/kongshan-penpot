@@ -1,0 +1,3 @@
+# 空山 · 禁止搜索引擎收录（匿名社区）
+User-agent: *
+Disallow: /
