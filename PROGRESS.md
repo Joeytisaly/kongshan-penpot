@@ -76,6 +76,13 @@
 - [x] **P4-4 装饰项落地**：顶栏搜索（layout 搜索框 form 化 + /search LIKE 参数化 + XSS 转义验证）/ 精华区（/essence 跨版块列表 + 站务加精 toggle）/ 引用（楼层引用链接化 + 服务端按 id 预填预览 + hidden quote 落库，写路径零改动）/ 通知筛选（chips 链接化 + type 过滤 + active 态）；全 10 页回归 200（门：tsc 零错误 + 端到端验收 51/51） ✓ 2026-09-05
 - [x] **P4-5 文档同步（P4 收官）**：AGENTS.md 依赖地图与目录说明去除已退役 mock.ts（替换为 db 数据层）+ 共享层清单更新；package.json `db:migrate` 库名修正（kongshan-db → kongshan-db-prod，P1 换库遗留）；ARCHITECTURE.md schema 对齐实际 migration（boards.icon_char、threads 双索引、replies.quote、favorites 索引）+ §3 风控表补 P4 五道新防线（纯文档切片，无代码过门需求） ✓ 2026-09-05
 
+## P5 数据真化与体验自洽（接手后第二轮）
+
+- [ ] **P5-1 种子数据自洽化**：演示帖（seed 身份发布）的 reply_count/hug_count 改由真实表驱动（楼层 COUNT / hugs COUNT）、views 降为小基数，seed 身份注水统计清零——消除「回复 128 点进去 2 层楼」穿帮；真实身份数据不受影响（决策：seed 内容保留作冷启动氛围，数字必须可验证）
+- [ ] **P5-2 去硬编码假数据**：顶栏 navbar-note 改品牌语（不再冒充数据）；版块页「3,412 位在线」+ 写死洞友编号 → 改用真实「今日新洞 N」（boardStats.today）；热帖榜随 P5-1 自然恢复真实排序
+- [ ] **P5-3 文案对齐实现**：「每次进入随机更换」→「凭身份码随时找回」（首页+我的）；「今日发言」→「累计发言」（todayPosts→totalPosts 契约）；「连续进入」→「来到树洞」
+- [ ] **P5-4 技术加固**：楼层号改 INSERT...SELECT 原子生成（根治并发重楼）；楼层被抱补通知楼主/作者；回复命中自伤词补 12356 横幅；社区统计「注册洞友」→「发言洞友」（排除懒签发未发言身份的统计噪音）
+
 ---
 
 ## 变更记录
