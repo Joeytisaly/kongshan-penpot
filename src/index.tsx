@@ -20,7 +20,7 @@ import {
   getOpenReports, getPendingThreads, getThreadDetail, getThreads, getWeekStats, isFavorited,
   searchThreads,
 } from "./db/queries";
-import { identityMiddleware, COOKIE_NAME } from "./middleware/identity";
+import { identityMiddleware, COOKIE_NAME, cookieOpts } from "./middleware/identity";
 import { securityMiddleware } from "./middleware/security";
 import { CODE_COOKIE, CODE_RE, createIdentity, hashCode, identityAgeMinutes, toDisplay, type IdentityRow } from "./lib/identity";
 import { displayAuthor, formatCount } from "./lib/format";
@@ -186,10 +186,9 @@ app.post("/login", async (c) => {
   if (!row) {
     return c.html(<LoginPage me={me} error="没有找到这个身份码。它可能已被重置，或输入有误。" />);
   }
-  c.header("Set-Cookie", [
-    `${COOKIE_NAME}=${row.id}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000`,
-    `${CODE_COOKIE}=${code}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000`,
-  ].join(", "));
+  // P8-3：两次 setCookie 生成独立的 Set-Cookie 头（RFC 禁止合并；与身份中间件同一 cookieOpts）
+  setCookie(c, COOKIE_NAME, String(row.id), cookieOpts);
+  setCookie(c, CODE_COOKIE, code, cookieOpts);
   return c.redirect("/me");
 });
 
