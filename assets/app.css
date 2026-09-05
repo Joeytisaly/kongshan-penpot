@@ -394,3 +394,81 @@ main.container { max-width: 1312px; margin: 0 auto; padding: 0 0 40px; }
 .code-card { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; margin-top: 16px; }
 .code-display { font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 22px; letter-spacing: 2px; color: var(--primary); font-weight: 600; }
 .code-hint { font-size: var(--fs-aux); color: var(--text-2); margin-top: 4px; }
+
+/* ===== P6 移动端响应式（三档断点，规范见 docs/DESIGN.md §6）=====
+   桌面 >1080px 保持 Penpot 画板还原不变；以下规则只在窄断点生效 */
+
+/* 平板 / 小窗：顶栏收窄，搜索框弹性收缩 */
+@media (max-width: 1080px) {
+  .topbar { padding: 0 24px; gap: 16px; }
+  .search { flex: 1; width: auto; margin-left: 0; min-width: 0; }
+  .topbar-actions { gap: 12px; }
+  .topbar-user { display: none; }
+  .navbar { padding: 0 24px; }
+}
+
+/* 平板竖屏：全部网格降单栏，侧栏卡片移到主内容下方；导航横向滑动 */
+@media (max-width: 880px) {
+  main.container { padding: 0 16px 40px; }
+  .home-grid { grid-template-columns: 1fr; }
+  .home-center { order: 1; }
+  .home-right { order: 2; }
+  .home-left { order: 3; }
+  .board-grid, .thread-grid, .me-grid, .mod-grid { grid-template-columns: 1fr; }
+  .thread-main, .me-main { order: 1; }
+  .board-grid > .thread-table { order: 1; }
+  .board-side, .thread-side, .me-side { order: 2; }
+  .navbar { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .navbar::-webkit-scrollbar { display: none; }
+  .navbar a { white-space: nowrap; flex: none; margin-right: 20px; }
+  .navbar-note { display: none; }
+}
+
+/* 手机：紧凑布局，帖子列表两行式 */
+@media (max-width: 560px) {
+  .topbar { height: 56px; padding: 0 12px; gap: 10px; }
+  .logo-text { font-size: 22px; }
+  .search { height: 32px; padding: 0 12px; }
+  .topbar-actions { gap: 10px; }
+  .avatar { width: 28px; height: 28px; }
+
+  /* 帖子列表两行式：标题整行，作者/回复查看/时间第二行；表头随之隐藏 */
+  .thread-head { display: none; }
+  .thread-row {
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      "title title title"
+      "author rv last";
+    row-gap: 4px;
+  }
+  .thread-table .col-title { grid-area: title; }
+  .thread-table .col-author { grid-area: author; }
+  .thread-table .col-rv { grid-area: rv; text-align: center; }
+  .thread-table .col-last { grid-area: last; text-align: right; }
+
+  .board-head { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .board-head-right { flex-direction: row; align-items: center; gap: 16px; }
+
+  .card { border-radius: 12px; }
+  .list-card { padding: 14px 16px 8px; }
+  .side-card { padding: 14px 16px; }
+  .reply-card, .floor { padding: 14px 16px; }
+  .compose-card { padding: 20px 16px; }
+
+  .floor-author { width: 64px; }
+  .floor-avatar { width: 36px; height: 36px; font-size: 10px; }
+  .floor-body { padding-left: 12px; }
+  .floor-actions { gap: 12px; flex-wrap: wrap; justify-content: flex-start; }
+
+  .profile-card { flex-wrap: wrap; }
+  .profile-stats { margin-left: 0; width: 100%; justify-content: space-between; }
+  .pstat { width: auto; flex: 1; }
+
+  .pagination { flex-wrap: wrap; }
+  .page-info { width: 100%; margin-left: 0; }
+
+  .mod-row { flex-direction: column; }
+  .mod-actions { flex-wrap: wrap; }
+  .reply-foot { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .fav-form { display: block; }
+}
