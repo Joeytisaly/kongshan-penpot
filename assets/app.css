@@ -249,7 +249,7 @@ main.container { max-width: 1312px; margin: 0 auto; padding: 0 0 40px; }
 .report-box summary::-webkit-details-marker { display: none; }
 .report-box[open] summary { color: var(--primary); }
 .report-form { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; margin-top: 8px; padding: 10px 12px; background: var(--input-bg); border-radius: var(--r-input); width: 260px; }
-.report-reason { width: 100%; background: none; border: 1px solid var(--border); border-radius: var(--r-input); padding: 6px 8px; font-family: var(--font-body); font-size: var(--fs-list); color: var(--text); resize: vertical; }
+.report-reason { width: 100%; background: none; border: 1px solid var(--border); border-radius: var(--r-input); padding: 6px 8px; font-family: var(--font-body); font-size: var(--fs-body); color: var(--text); resize: vertical; }
 .back-top { text-align: right; }
 
 .reply-card { padding: 20px 24px; }
@@ -326,7 +326,7 @@ main.container { max-width: 1312px; margin: 0 auto; padding: 0 0 40px; }
    高亮第一个，点其他版块时视觉与提交值不一致。:has 不支持时无高亮（诚实降级） */
 label.board-chip:has(input:checked) { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 500; }
 .compose-input {
-  height: 44px; border-radius: var(--r-input); background: var(--input-bg);
+  width: 100%; height: 44px; border-radius: var(--r-input); background: var(--input-bg);
   border: 1px solid var(--border); padding: 0 16px; display: flex; align-items: center;
   color: var(--text); font-size: var(--fs-body);
 }
