@@ -2,6 +2,7 @@
 // 依赖地图：queries.ts ↔ types.ts（契约）+ format.ts（展示格式化）；页面层只消费返回值
 // P0 的 mock.ts 退役后，本文件是页面唯一数据来源
 import type { Board, Floor, HotItem, Mood, MyThread, Notice, Thread } from "../lib/types";
+import type { IdentityRow } from "../lib/identity";
 import { displayAuthor, ageMinutes, formatCount, formatDateTime, formatRelativeTime } from "../lib/format";
 import { levelFromPosts } from "../lib/level";
 import { judgeContent } from "../lib/words";
@@ -135,6 +136,21 @@ export async function getBoardStats(db: D1Database, boardSlug: string) {
 }
 
 /* ========== 盖楼详情 03 ========== */
+
+/** 引用预填（P4-4）：按楼层/帖子 id 取 published 内容与作者号（先查楼层再查帖子）。P10-4 自 index.tsx 收敛 */
+export async function getQuotePreview(db: D1Database, id: string): Promise<{ content: string; display_no: number } | null> {
+  return await db.prepare(
+    "SELECT r.content, i.display_no FROM replies r JOIN identities i ON i.id=r.identity_id WHERE r.id=? AND r.status='published'",
+  ).bind(id).first<{ content: string; display_no: number }>()
+    ?? await db.prepare(
+      "SELECT t.content, i.display_no FROM threads t JOIN identities i ON i.id=t.identity_id WHERE t.id=? AND t.status='published'",
+    ).bind(id).first<{ content: string; display_no: number }>();
+}
+
+/** 登录：按身份码哈希找身份（P10-4 自 index.tsx 收敛） */
+export async function getIdentityByCodeHash(db: D1Database, codeHash: string): Promise<IdentityRow | null> {
+  return await db.prepare("SELECT * FROM identities WHERE code_hash = ?").bind(codeHash).first<IdentityRow>();
+}
 
 export interface ThreadDetail {
   id: string; boardSlug: string; boardName: string; title: string;

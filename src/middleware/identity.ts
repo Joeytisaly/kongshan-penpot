@@ -4,6 +4,7 @@ import type { MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import type { Env } from "../types/env";
 import { createIdentity, CODE_COOKIE, type IdentityRow } from "../lib/identity";
+import { insertIdentity } from "../db/writes";
 
 export const COOKIE_NAME = "ks_id";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 年
@@ -35,11 +36,9 @@ export const identityMiddleware: MiddlewareHandler<Ctx> = async (c, next) => {
     deleteCookie(c, COOKIE_NAME);
   }
 
-  // 懒签发：首次访问即成为匿名洞友
+  // 懒签发：首次访问即成为匿名洞友（P10-4：INSERT 统一走 db/writes.insertIdentity）
   const { id, code, codeHash, displayNo } = await createIdentity(c.env.AUTH_PEPPER);
-  await c.env.DB.prepare(
-    "INSERT INTO identities (id, code_hash, display_no, created_at, last_seen_at) VALUES (?, ?, ?, datetime('now'), datetime('now'))",
-  ).bind(id, codeHash, displayNo).run();
+  await insertIdentity(c.env.DB, { id, codeHash, displayNo });
 
   c.set("identity", {
     id, code_hash: codeHash, display_no: displayNo,

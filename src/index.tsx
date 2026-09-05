@@ -16,10 +16,15 @@ import { SearchPage } from "./routes/search";
 import { EssencePage } from "./routes/essence";
 import {
   getBoardBySlug, getBoardStats, getBoards, getCommunityStats, getEssenceThreads, getHotThreads,
-  getMyFavorites, getMyReplies, getMyStats, getMyThreads, getMyTracks, getNotices, getUnreadCount,
-  getOpenReports, getPendingThreads, getThreadDetail, getThreads, getWeekStats, isFavorited,
-  searchThreads,
+  getIdentityByCodeHash, getMyFavorites, getMyReplies, getMyStats, getMyThreads, getMyTracks,
+  getNotices, getQuotePreview, getUnreadCount, getOpenReports, getPendingThreads, getThreadDetail,
+  getThreads, getWeekStats, isFavorited, searchThreads,
 } from "./db/queries";
+import {
+  approveThread, deleteTarget, hideTarget, insertReport, readAllNotifications,
+  resolveReport, restoreTarget, toggleEssence, togglePin,
+} from "./db/mod";
+import { insertIdentity, revokeIdentityCode } from "./db/writes";
 import { identityMiddleware, COOKIE_NAME, cookieOpts } from "./middleware/identity";
 import { securityMiddleware } from "./middleware/security";
 import { CODE_COOKIE, CODE_RE, createIdentity, hashCode, identityAgeMinutes, toDisplay, type IdentityRow } from "./lib/identity";
@@ -104,12 +109,7 @@ app.get("/t/:id", async (c) => {
   const quoteId = c.req.query("quote");
   let quotePreview: string | undefined;
   if (quoteId) {
-    const hit = await c.env.DB.prepare(
-      "SELECT r.content, i.display_no FROM replies r JOIN identities i ON i.id=r.identity_id WHERE r.id=? AND r.status='published'",
-    ).bind(quoteId).first<{ content: string; display_no: number }>()
-      ?? await c.env.DB.prepare(
-        "SELECT t.content, i.display_no FROM threads t JOIN identities i ON i.id=t.identity_id WHERE t.id=? AND t.status='published'",
-      ).bind(quoteId).first<{ content: string; display_no: number }>();
+    const hit = await getQuotePreview(c.env.DB, quoteId);
     if (hit) quotePreview = `引用 ${displayAuthor(hit.display_no)} 的发言：${hit.content.slice(0, 60)}`;
   }
   // 浏览计数：KV 累积，Cron 每 10 分钟落库
@@ -148,11 +148,9 @@ app.get("/notifications", async (c) => {
   return c.html(<NotificationsPage me={toDisplay(identity)} notices={notices} activeType={type ?? null} unread={unread} />);
 });
 
-// 全部已读
+// 全部已读（P10-4：SQL 在 db/mod.ts）
 app.post("/notifications/read", async (c) => {
-  await c.env.DB.prepare(
-    "UPDATE notifications SET read_at = datetime('now') WHERE identity_id = ? AND read_at IS NULL",
-  ).bind(c.get("identity").id).run();
+  await readAllNotifications(c.env.DB, c.get("identity").id);
   return c.redirect("/notifications");
 });
 
@@ -215,7 +213,7 @@ app.post("/login", async (c) => {
     return c.html(<LoginPage me={me} error="身份码格式不正确，请检查后重试（形如 KS-XXXX-XXXX-XXXX-XXXX）。" />);
   }
   const hash = await hashCode(code, c.env.AUTH_PEPPER);
-  const row = await c.env.DB.prepare("SELECT * FROM identities WHERE code_hash = ?").bind(hash).first();
+  const row = await getIdentityByCodeHash(c.env.DB, hash);
   if (!row) {
     return c.html(<LoginPage me={me} error="没有找到这个身份码。它可能已被重置，或输入有误。" />);
   }
@@ -235,21 +233,17 @@ app.post("/logout", (c) => {
 // 重置身份：签发新身份；旧身份码作废（P8-5 兑现 §2 承诺）——code_hash 改写为不可命中的
 // 占位（行保留供历史楼层归属），旧码从此无法登录。其他设备上的旧 Cookie 不在承诺范围
 app.post("/me/reset", async (c) => {
-  await c.env.DB.prepare("UPDATE identities SET code_hash = 'revoked:' || id WHERE id = ?")
-    .bind(c.get("identity").id).run();
+  await revokeIdentityCode(c.env.DB, c.get("identity").id);
   const { id, code, codeHash, displayNo } = await createIdentity(c.env.AUTH_PEPPER);
-  await c.env.DB.prepare(
-    "INSERT INTO identities (id, code_hash, display_no, created_at, last_seen_at) VALUES (?, ?, ?, datetime('now'), datetime('now'))",
-  ).bind(id, codeHash, displayNo).run();
-  c.header("Set-Cookie", [
-    `${COOKIE_NAME}=${id}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000`,
-    `${CODE_COOKIE}=${code}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000`,
-  ].join(", "));
+  await insertIdentity(c.env.DB, { id, codeHash, displayNo });
+  // P10-4 回归发现：此处仍是 join(", ") 拼接（P8-3 漏改）——与 /login 统一为独立 Set-Cookie
+  setCookie(c, COOKIE_NAME, id, cookieOpts);
+  setCookie(c, CODE_COOKIE, code, cookieOpts);
   return c.redirect("/me");
 });
 
 // 举报：累计 3 次自动隐藏目标（限流：每 IP-HMAC 5 次/小时——懒签发+清 Cookie 可无限换身份，必须按设备限）
-// P9-1：结果经回跳 query 提示（reported=1 / reporterr=1），不再返回 JSON
+// P9-1：结果经回跳 query 提示；P10-4：落库/计数/自动隐藏在 db/mod.ts
 app.post("/report", async (c) => {
   const body = await c.req.parseBody();
   const back = safeReturn(body.return);
@@ -260,20 +254,7 @@ app.post("/report", async (c) => {
   const targetType = body.type === "reply" ? "reply" : "thread";
   const targetId = String(body.target ?? "");
   if (!targetId) return c.redirect(back);
-  await c.env.DB.prepare(
-    "INSERT INTO reports (id, target_type, target_id, reason) VALUES (?, ?, ?, ?)",
-  ).bind(crypto.randomUUID(), targetType, targetId, String(body.reason ?? "")).run();
-  const { results } = await c.env.DB.prepare(
-    "SELECT COUNT(*) AS n FROM reports WHERE target_type=? AND target_id=? AND status='open'",
-  ).bind(targetType, targetId).all<{ n: number }>();
-  const n = results[0]?.n ?? 0;
-  if (n >= 3) {
-    await c.env.DB.prepare(
-      targetType === "thread"
-        ? "UPDATE threads SET status='hidden' WHERE id=?"
-        : "UPDATE replies SET status='hidden' WHERE id=?",
-    ).bind(targetId).run();
-  }
+  await insertReport(c.env.DB, targetType, targetId, String(body.reason ?? ""));
   return c.redirect(withQuery(back, "reported=1"));
 });
 
@@ -318,22 +299,15 @@ app.post("/mod/login", async (c) => {
 app.post("/mod/approve", async (c) => {
   const body = await c.req.parseBody();
   if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
-  await c.env.DB.prepare("UPDATE threads SET status='published' WHERE id=? AND status='pending'").bind(String(body.id ?? "")).run();
+  await approveThread(c.env.DB, String(body.id ?? ""));
   return c.redirect("/mod");
 });
-// 站务处置：隐藏（可逆暂隐）/ 恢复 / 删除（终态）；处置后自动关闭该目标全部未决举报
+// 站务处置：隐藏（可逆暂隐）/ 恢复 / 删除（终态）；处置后自动关闭该目标全部未决举报（P10-4：SQL 在 db/mod.ts）
 app.post("/mod/hide", async (c) => {
   if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
   const body = await c.req.parseBody();
   const type = String(body.type) === "reply" ? "reply" : "thread";
-  await c.env.DB.prepare(
-    type === "reply"
-      ? "UPDATE replies SET status='hidden' WHERE id=? AND status='published'"
-      : "UPDATE threads SET status='hidden' WHERE id=? AND status='published'",
-  ).bind(String(body.id ?? "")).run();
-  await c.env.DB.prepare(
-    "UPDATE reports SET status='resolved' WHERE target_type=? AND target_id=? AND status='open'",
-  ).bind(type, String(body.id ?? "")).run();
+  await hideTarget(c.env.DB, type, String(body.id ?? ""));
   return c.redirect("/mod");
 });
 
@@ -341,47 +315,22 @@ app.post("/mod/restore", async (c) => {
   if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
   const body = await c.req.parseBody();
   const type = String(body.type) === "reply" ? "reply" : "thread";
-  // 仅 hidden 可恢复（deleted 是终态）
-  await c.env.DB.prepare(
-    type === "reply"
-      ? "UPDATE replies SET status='published' WHERE id=? AND status='hidden'"
-      : "UPDATE threads SET status='published' WHERE id=? AND status='hidden'",
-  ).bind(String(body.id ?? "")).run();
-  await c.env.DB.prepare(
-    "UPDATE reports SET status='resolved' WHERE target_type=? AND target_id=? AND status='open'",
-  ).bind(type, String(body.id ?? "")).run();
+  await restoreTarget(c.env.DB, type, String(body.id ?? ""));
   return c.redirect("/mod");
 });
 
 app.post("/mod/delete", async (c) => {
   const body = await c.req.parseBody();
   if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
-  const id = String(body.id ?? "");
   const type = String(body.type) === "reply" ? "reply" : "thread";
-  if (type === "reply") {
-    // 防重：仅 published|hidden 首次转 deleted 时回收回复数（hidden 期间未减过）
-    const row = await c.env.DB.prepare("SELECT status, thread_id FROM replies WHERE id=?")
-      .bind(id).first<{ status: string; thread_id: string }>();
-    if (row && row.status !== "deleted") {
-      const res = await c.env.DB.batch([
-        c.env.DB.prepare("UPDATE replies SET status='deleted' WHERE id=?").bind(id),
-        c.env.DB.prepare("UPDATE threads SET reply_count = MAX(reply_count - 1, 0) WHERE id=?").bind(row.thread_id),
-      ]);
-      if (res.some((r) => !r.success)) return c.redirect("/mod");
-    }
-  } else {
-    await c.env.DB.prepare("UPDATE threads SET status='deleted' WHERE id=?").bind(id).run();
-  }
-  await c.env.DB.prepare(
-    "UPDATE reports SET status='resolved' WHERE target_type=? AND target_id=?",
-  ).bind(type, id).run();
+  await deleteTarget(c.env.DB, type, String(body.id ?? ""));
   return c.redirect("/mod");
 });
 // 加精 toggle（P4-4：精华区的运营入口，举报队列帖子条目触发）
 app.post("/mod/essence", async (c) => {
   if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
   const body = await c.req.parseBody();
-  await c.env.DB.prepare("UPDATE threads SET essence = 1 - essence WHERE id=?").bind(String(body.id ?? "")).run();
+  await toggleEssence(c.env.DB, String(body.id ?? ""));
   return c.redirect("/mod");
 });
 
@@ -389,14 +338,14 @@ app.post("/mod/essence", async (c) => {
 app.post("/mod/pin", async (c) => {
   if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
   const body = await c.req.parseBody();
-  await c.env.DB.prepare("UPDATE threads SET pinned = 1 - pinned WHERE id=?").bind(String(body.id ?? "")).run();
+  await togglePin(c.env.DB, String(body.id ?? ""));
   return c.redirect("/mod");
 });
 
 app.post("/mod/report-done", async (c) => {
   const body = await c.req.parseBody();
   if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
-  await c.env.DB.prepare("UPDATE reports SET status='resolved' WHERE id=?").bind(String(body.id ?? "")).run();
+  await resolveReport(c.env.DB, String(body.id ?? ""));
   return c.redirect("/mod");
 });
 

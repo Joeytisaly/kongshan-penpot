@@ -29,7 +29,7 @@
 | `assets/tokens.css`（设计变量） | 全部页面 + docs/DESIGN.md |
 | `src/components/layout.tsx`（顶栏/导航/页脚） | 全部 6 个路由页（逐页冒烟回归） |
 | `src/lib/types.ts`（数据契约） | 全部 routes + lib + 未来 D1 查询层 |
-| `src/db/queries.ts` / `src/db/writes.ts`（数据层） | 全部 routes 页面 + 与 types.ts 契约的一致性 |
+| `src/db/queries.ts` / `src/db/writes.ts` / `src/db/mod.ts`（数据层） | 全部 routes 页面 + 与 types.ts 契约的一致性 |
 | 路由路径（如 `/b/:slug`） | 所有内部链接 + docs/ARCHITECTURE.md 路由表 |
 | docs/DESIGN.md（设计规范） | tokens.css + 受影响页面 |
 | docs/ARCHITECTURE.md（架构决策） | 对应代码模块 + PROGRESS.md |

@@ -220,6 +220,23 @@ export async function flushViews(kv: KVNamespace, db: D1Database): Promise<numbe
   return list.keys.length;
 }
 
+/* ========== 身份生命周期（P10-4：懒签发与重置共用同一 INSERT，消灭双份 SQL） ========== */
+
+/** 新身份落库（懒签发 / 重置身份共用） */
+export async function insertIdentity(
+  db: D1Database,
+  i: { id: string; codeHash: string; displayNo: number },
+): Promise<void> {
+  await db.prepare(
+    "INSERT INTO identities (id, code_hash, display_no, created_at, last_seen_at) VALUES (?, ?, ?, datetime('now'), datetime('now'))",
+  ).bind(i.id, i.codeHash, i.displayNo).run();
+}
+
+/** 重置身份：旧身份码作废（code_hash 改写占位，行保留供楼层归属） */
+export async function revokeIdentityCode(db: D1Database, identityId: string): Promise<void> {
+  await db.prepare("UPDATE identities SET code_hash = 'revoked:' || id WHERE id = ?").bind(identityId).run();
+}
+
 /* ========== 用户自助删除（10 分钟内收回自己的帖子/楼层，兑现发帖页文案承诺） ========== */
 
 const DELETE_WINDOW_MIN = 10;
