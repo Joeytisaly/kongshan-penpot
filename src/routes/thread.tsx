@@ -55,9 +55,9 @@ export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boo
                     <span dangerouslySetInnerHTML={{ __html: HEART_ICON }} /> 抱抱 {f.hugCount}
                   </button>
                 </form>
-                <span class="floor-action">
+                <a class="floor-action" href="#reply">
                   <span dangerouslySetInnerHTML={{ __html: BUBBLE_ICON }} /> 回复
-                </span>
+                </a>
                 <a class="floor-action link" href={`/t/${detail.id}?quote=${f.id}#reply`}>引用</a>
                 <form action="/report" method="post" class="floor-action-form">
                   <input type="hidden" name="type" value={f.isOp ? "thread" : "reply"} />
@@ -82,7 +82,6 @@ export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boo
           {quotePreview && <div class="quote-block">{quotePreview}</div>}
           <form action={`/t/${detail.id}/reply`} method="post">
             {quotePreview && <input type="hidden" name="quote" value={quotePreview} />}
-            <input type="hidden" name="reply_to" value="" />
             <textarea class="reply-box" name="content" rows={2} placeholder="说点善意的吧，今晚大家都辛苦了…"></textarea>
             <div class="reply-foot">
               <span class="reply-note">回复将以随机身份「洞友 #{me.displayNo}」发出，10 分钟内可删除</span>
