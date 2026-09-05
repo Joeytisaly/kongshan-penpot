@@ -37,7 +37,10 @@ export const identityMiddleware: MiddlewareHandler<Ctx> = async (c, next) => {
 
   c.set("identity", {
     id, code_hash: codeHash, display_no: displayNo, level: "一叶",
-    post_count: 0, hug_received: 0, created_at: new Date().toISOString(), last_seen_at: null,
+    post_count: 0, hug_received: 0,
+    // 与 D1 datetime('now') 同构（UTC、空格分隔）：ageMin/toDisplay 等消费方按同一格式解析
+    created_at: new Date().toISOString().slice(0, 19).replace("T", " "),
+    last_seen_at: null,
   });
   setCookie(c, COOKIE_NAME, id, cookieOpts);
   setCookie(c, CODE_COOKIE, code, cookieOpts); // 身份码明文随 Cookie 携带，/me 页展示供用户抄写

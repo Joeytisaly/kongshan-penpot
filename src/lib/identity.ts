@@ -63,6 +63,17 @@ export const CODE_RE = /^KS-[0-9A-HJKMNP-TV-Z]{4}(-[0-9A-HJKMNP-TV-Z]{4}){3}$/;
 /** 身份码明文 Cookie（HttpOnly，仅服务端可读，供 /me 页展示给用户抄写保存） */
 export const CODE_COOKIE = "ks_code";
 
+/** 身份年龄（分钟）：兼容 ISO（懒签发内存态）与 SQLite（DB 态）两种 created_at 格式。
+ *  解析失败视为 0（新身份）——宁可让真人多答一道验证题，不放机器过防线。 */
+export function identityAgeMinutes(row: Pick<IdentityRow, "created_at">): number {
+  const raw = row.created_at;
+  const t = raw.includes("T")
+    ? new Date(raw).getTime()
+    : new Date(raw.replace(" ", "T") + "Z").getTime();
+  if (Number.isNaN(t)) return 0;
+  return (Date.now() - t) / 60_000;
+}
+
 /** DB 行 → 页面展示契约（UI 只依赖 types.ts 的 Identity，数据层形态在此转换） */
 export function toDisplay(row: IdentityRow) {
   return {

@@ -89,3 +89,28 @@ export async function riskRecord(kv: KVNamespace, identityId: string, ip: string
     await kv.put(K_REPLIES(identityId), list.slice(-10).join(","), { expirationTtl: REPLY_WINDOW * 3 });
   }
 }
+
+/* ========== 通用 IP-HMAC 限流（举报 / 登录等不依赖身份的场景） ========== */
+
+const K_IP_SCOPE = (scope: string, h: string) => `risk:${scope}:${h}`;
+
+/** 通用 IP-HMAC 频率检查：windowSec 内最多 limit 次（原始 IP 永不落盘）。
+ *  与 riskCheck/riskRecord 相同的 check/record 分离模式，调用方自行决定计数时机。 */
+export async function ipRateLimit(
+  kv: KVNamespace,
+  ip: string | null,
+  scope: string,
+  limit: number,
+  windowSec: number,
+): Promise<{ ok: boolean; waitSec: number }> {
+  const h = await ipHmac(kv, ip);
+  const n = Number(await kv.get(K_IP_SCOPE(scope, h))) || 0;
+  return n >= limit ? { ok: false, waitSec: windowSec } : { ok: true, waitSec: 0 };
+}
+
+/** 通过 ipRateLimit 后计数 +1（TTL = 窗口时长）；防爆破/防刷按请求数计，不论业务成败 */
+export async function ipRateRecord(kv: KVNamespace, ip: string | null, scope: string, windowSec: number): Promise<void> {
+  const h = await ipHmac(kv, ip);
+  const n = (Number(await kv.get(K_IP_SCOPE(scope, h))) || 0) + 1;
+  await kv.put(K_IP_SCOPE(scope, h), String(n), { expirationTtl: windowSec });
+}

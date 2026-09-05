@@ -18,11 +18,11 @@ import {
 } from "./db/queries";
 import { identityMiddleware, COOKIE_NAME } from "./middleware/identity";
 import { securityMiddleware } from "./middleware/security";
-import { CODE_COOKIE, CODE_RE, createIdentity, hashCode, toDisplay } from "./lib/identity";
+import { CODE_COOKIE, CODE_RE, createIdentity, hashCode, identityAgeMinutes, toDisplay } from "./lib/identity";
 import { formatCount } from "./lib/format";
 import { levelFromPosts } from "./lib/level";
 import { generateCaptcha, verifyCaptcha } from "./lib/captcha";
-import { riskCheck, riskRecord } from "./lib/risk";
+import { ipRateLimit, ipRateRecord, riskCheck, riskRecord } from "./lib/risk";
 import { bumpViews, createReply, createThread, flushViews, toggleFavorite, toggleHug } from "./db/writes";
 import type { Env } from "./types/env";
 
@@ -95,10 +95,8 @@ app.post("/favorite", async (c) => {
 app.get("/new", async (c) => {
   const boards = await getBoards(c.env.KV, c.env.DB);
   // 风控触发：新身份 10 分钟内首发，需先答古诗验证码（默认免验证）
-  const identity = c.get("identity");
-  const ageMin = (Date.now() - new Date(identity.created_at.replace(" ", "T") + "Z").getTime()) / 60000;
-  const captcha = ageMin < 10 ? await generateCaptcha(c.env.KV) : undefined;
-  return c.html(<NewThreadPage me={toDisplay(identity)} boards={boards} captcha={captcha} />);
+  const captcha = identityAgeMinutes(c.get("identity")) < 10 ? await generateCaptcha(c.env.KV) : undefined;
+  return c.html(<NewThreadPage me={toDisplay(c.get("identity"))} boards={boards} captcha={captcha} />);
 });
 
 app.get("/notifications", async (c) => {
@@ -133,9 +131,15 @@ app.get("/me", async (c) => {
   />);
 });
 
-// 身份码登录：GET 表单 / POST 验证
+// 身份码登录：GET 表单 / POST 验证（POST 限频：每 IP-HMAC 5 次/小时，防爆破——ARCHITECTURE.md §2）
 app.get("/login", (c) => c.html(<LoginPage me={toDisplay(c.get("identity"))} />));
 app.post("/login", async (c) => {
+  const ip = c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for") ?? null;
+  const limit = await ipRateLimit(c.env.KV, ip, "login", 5, 3600);
+  if (!limit.ok) {
+    return c.html(<LoginPage me={toDisplay(c.get("identity"))} error="尝试的次数有点多，歇一小时再来吧，树洞不会跑。" />);
+  }
+  await ipRateRecord(c.env.KV, ip, "login", 3600);
   const body = await c.req.parseBody();
   const code = String(body.code ?? "").trim().toUpperCase();
   const me = toDisplay(c.get("identity"));
@@ -174,8 +178,12 @@ app.post("/me/reset", async (c) => {
   return c.redirect("/me");
 });
 
-// 举报：累计 3 次自动隐藏目标
+// 举报：累计 3 次自动隐藏目标（限流：每 IP-HMAC 5 次/小时——懒签发+清 Cookie 可无限换身份，必须按设备限）
 app.post("/report", async (c) => {
+  const ip = c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for") ?? null;
+  const limit = await ipRateLimit(c.env.KV, ip, "report", 5, 3600);
+  if (!limit.ok) return c.json({ ok: false, error: "操作有点频繁啦，休息一下再试试。" });
+  await ipRateRecord(c.env.KV, ip, "report", 3600);
   const body = await c.req.parseBody();
   const targetType = body.type === "reply" ? "reply" : "thread";
   const targetId = String(body.target ?? "");
@@ -246,8 +254,7 @@ app.post("/new", async (c) => {
     return c.html(<NewThreadPage me={toDisplay(identity)} boards={boards} error={risk.reason} />);
   }
   // 新身份 10 分钟内首发需过古诗验证码
-  const ageMin = (Date.now() - new Date(identity.created_at.replace(" ", "T") + "Z").getTime()) / 60000;
-  if (ageMin < 10) {
+  if (identityAgeMinutes(identity) < 10) {
     const pass = await verifyCaptcha(c.env.KV, String(body.captcha_id ?? ""), String(body.captcha_answer ?? ""));
     if (!pass) {
       const boards = await getBoards(c.env.KV, c.env.DB);
