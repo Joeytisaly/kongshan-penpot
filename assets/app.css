@@ -35,6 +35,11 @@ main.container { max-width: 1312px; margin: 0 auto; padding: 0 0 40px; }
   padding: 0 16px; color: var(--text-2); font-size: var(--fs-list); margin-left: 120px;
 }
 .search svg { flex: none; }
+.search-input {
+  background: none; border: none; outline: none; width: 100%;
+  color: var(--text); font-size: var(--fs-list); font-family: var(--font-body);
+}
+.search-input::placeholder { color: var(--text-2); }
 .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 20px; font-size: var(--fs-list); }
 .avatar {
   width: 32px; height: 32px; border-radius: 50%; background: var(--accent-light);

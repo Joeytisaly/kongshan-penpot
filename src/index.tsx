@@ -11,15 +11,18 @@ import { LoginPage } from "./routes/login";
 import { ModPage } from "./routes/mod";
 import { EmptyState } from "./components/empty";
 import { Layout } from "./components/layout";
+import { SearchPage } from "./routes/search";
+import { EssencePage } from "./routes/essence";
 import {
-  getBoardBySlug, getBoardStats, getBoards, getCommunityStats, getHotThreads,
+  getBoardBySlug, getBoardStats, getBoards, getCommunityStats, getEssenceThreads, getHotThreads,
   getMyFavorites, getMyReplies, getMyStats, getMyThreads, getMyTracks, getNotices,
   getOpenReports, getPendingThreads, getThreadDetail, getThreads, getWeekStats, isFavorited,
+  searchThreads,
 } from "./db/queries";
 import { identityMiddleware, COOKIE_NAME } from "./middleware/identity";
 import { securityMiddleware } from "./middleware/security";
 import { CODE_COOKIE, CODE_RE, createIdentity, hashCode, identityAgeMinutes, toDisplay } from "./lib/identity";
-import { formatCount } from "./lib/format";
+import { displayAuthor, formatCount } from "./lib/format";
 import { levelFromPosts } from "./lib/level";
 import { generateCaptcha, verifyCaptcha } from "./lib/captcha";
 import { ipRateLimit, ipRateRecord, riskCheck, riskRecord } from "./lib/risk";
@@ -80,9 +83,21 @@ app.get("/t/:id", async (c) => {
   if (!detail) return c.notFound();
   const favorited = await isFavorited(c.env.DB, identity.id, c.req.param("id"));
   const error = c.req.query("err") ? "一口气说了好多啦。歇一分钟，再继续说吧。" : undefined;
+  // 引用预填（P4-4）：按楼层/帖子 id 读内容，生成引用文本；传 id 不传文本，不接受用户提供的原文回显
+  const quoteId = c.req.query("quote");
+  let quotePreview: string | undefined;
+  if (quoteId) {
+    const hit = await c.env.DB.prepare(
+      "SELECT r.content, i.display_no FROM replies r JOIN identities i ON i.id=r.identity_id WHERE r.id=? AND r.status='published'",
+    ).bind(quoteId).first<{ content: string; display_no: number }>()
+      ?? await c.env.DB.prepare(
+        "SELECT t.content, i.display_no FROM threads t JOIN identities i ON i.id=t.identity_id WHERE t.id=? AND t.status='published'",
+      ).bind(quoteId).first<{ content: string; display_no: number }>();
+    if (hit) quotePreview = `引用 ${displayAuthor(hit.display_no)} 的发言：${hit.content.slice(0, 60)}`;
+  }
   // 浏览计数：KV 累积，Cron 每 10 分钟落库
   c.executionCtx.waitUntil(bumpViews(c.env.KV, c.req.param("id")));
-  return c.html(<ThreadPage me={toDisplay(identity)} detail={detail} favorited={favorited} error={error} />);
+  return c.html(<ThreadPage me={toDisplay(identity)} detail={detail} favorited={favorited} error={error} quotePreview={quotePreview} />);
 });
 
 // 收藏 toggle
@@ -100,8 +115,10 @@ app.get("/new", async (c) => {
 });
 
 app.get("/notifications", async (c) => {
-  const notices = await getNotices(c.env.DB, c.get("identity").id);
-  return c.html(<NotificationsPage me={toDisplay(c.get("identity"))} notices={notices} />);
+  const t = c.req.query("type");
+  const type = t === "reply" || t === "hug" || t === "system" ? t : undefined;
+  const notices = await getNotices(c.env.DB, c.get("identity").id, type);
+  return c.html(<NotificationsPage me={toDisplay(c.get("identity"))} notices={notices} activeType={type ?? null} />);
 });
 
 // 全部已读
@@ -129,6 +146,19 @@ app.get("/me", async (c) => {
       posts: formatCount(stats.posts), replies: formatCount(stats.replies), hugs: formatCount(stats.hugs),
     }} week={week} myReplies={myReplies} myFavorites={myFavorites} level={level}
   />);
+});
+
+// 搜索（P4-4：顶栏搜索框落地）
+app.get("/search", async (c) => {
+  const q = (c.req.query("q") ?? "").trim().slice(0, 30);
+  const threads = q ? await searchThreads(c.env.DB, q) : [];
+  return c.html(<SearchPage me={toDisplay(c.get("identity"))} q={q} threads={threads} />);
+});
+
+// 精华区（P4-4：导航已有入口，落地列表页）
+app.get("/essence", async (c) => {
+  const threads = await getEssenceThreads(c.env.DB);
+  return c.html(<EssencePage me={toDisplay(c.get("identity"))} threads={threads} />);
 });
 
 // 身份码登录：GET 表单 / POST 验证（POST 限频：每 IP-HMAC 5 次/小时，防爆破——ARCHITECTURE.md §2）
@@ -298,6 +328,14 @@ app.post("/mod/delete", async (c) => {
   ).bind(type, id).run();
   return c.redirect("/mod");
 });
+// 加精 toggle（P4-4：精华区的运营入口，举报队列帖子条目触发）
+app.post("/mod/essence", async (c) => {
+  if (getCookie(c, MOD_COOKIE) !== c.env.MOD_PASS) return c.redirect("/mod");
+  const body = await c.req.parseBody();
+  await c.env.DB.prepare("UPDATE threads SET essence = 1 - essence WHERE id=?").bind(String(body.id ?? "")).run();
+  return c.redirect("/mod");
+});
+
 app.post("/mod/report-done", async (c) => {
   const body = await c.req.parseBody();
   if (getCookie(c, MOD_COOKIE) !== c.env.MOD_PASS) return c.redirect("/mod");

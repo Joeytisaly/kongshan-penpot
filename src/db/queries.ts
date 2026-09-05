@@ -214,6 +214,48 @@ export async function getThreadDetail(db: D1Database, threadId: string, identity
   };
 }
 
+/* ========== 搜索 / 精华区（P4-4：设计稿内元素落地） ========== */
+
+/** 搜索 published 帖子的标题与正文（LIKE 参数化；结果按抱抱数排序） */
+export async function searchThreads(db: D1Database, q: string, limit = 20): Promise<Thread[]> {
+  const like = `%${q}%`;
+  const { results } = await db.prepare(`
+    SELECT t.id, t.title, t.reply_count, t.views, t.essence, i.display_no AS author_display,
+      COALESCE(t.last_reply_at, t.created_at) AS last_reply_at, t.created_at
+    FROM threads t JOIN identities i ON i.id=t.identity_id
+    WHERE t.status='published' AND (t.title LIKE ? OR t.content LIKE ?)
+    ORDER BY t.hug_count DESC LIMIT ?
+  `).bind(like, like, limit).all<ThreadRow>();
+  return results.map((r) => ({
+    id: r.id, boardSlug: "", boardName: "",
+    title: r.title, author: displayAuthor(r.author_display),
+    replyCount: formatCount(r.reply_count), viewCount: formatCount(r.views),
+    pinned: !!r.pinned, essence: !!r.essence,
+    lastReplyUser: displayAuthor(r.author_display),
+    lastReplyTime: formatRelativeTime(r.last_reply_at ?? r.created_at),
+  }));
+}
+
+/** 精华区：跨版块 essence=1 的帖子，按最后活跃排序 */
+export async function getEssenceThreads(db: D1Database, limit = 50): Promise<Thread[]> {
+  const { results } = await db.prepare(`
+    SELECT t.id, t.title, t.reply_count, t.views, t.essence, i.display_no AS author_display,
+      COALESCE(t.last_reply_at, t.created_at) AS last_reply_at, t.created_at,
+      b.name AS board_name, b.slug AS board_slug
+    FROM threads t JOIN boards b ON b.id=t.board_id JOIN identities i ON i.id=t.identity_id
+    WHERE t.status='published' AND t.essence=1
+    ORDER BY COALESCE(t.last_reply_at, t.created_at) DESC LIMIT ?
+  `).bind(limit).all<ThreadRow & { board_name: string; board_slug: string }>();
+  return results.map((r) => ({
+    id: r.id, boardSlug: r.board_slug, boardName: r.board_name,
+    title: r.title, author: displayAuthor(r.author_display),
+    replyCount: formatCount(r.reply_count), viewCount: formatCount(r.views),
+    pinned: !!r.pinned, essence: true,
+    lastReplyUser: displayAuthor(r.author_display),
+    lastReplyTime: formatRelativeTime(r.last_reply_at ?? r.created_at),
+  }));
+}
+
 /* ========== 站务：待审 / 举报队列 ========== */
 
 export async function getPendingThreads(db: D1Database) {
@@ -234,17 +276,19 @@ export async function getOpenReports(db: D1Database) {
     SELECT r.id, r.target_type, r.target_id, r.reason, r.created_at,
       COALESCE(t.title, '楼层#' || rp.floor) AS target_label,
       COALESCE(rp.content, t.content) AS target_content,
+      t.essence AS thread_essence,
       CASE r.target_type WHEN 'thread' THEN t.status ELSE rp.status END AS target_status
     FROM reports r
     LEFT JOIN threads t ON r.target_type='thread' AND t.id=r.target_id
     LEFT JOIN replies rp ON r.target_type='reply' AND rp.id=r.target_id
     WHERE r.status='open' ORDER BY r.created_at
-  `).all<{ id: string; target_type: string; target_id: string; reason: string; created_at: string; target_label: string; target_content: string | null; target_status: string | null }>();
+  `).all<{ id: string; target_type: string; target_id: string; reason: string; created_at: string; target_label: string; target_content: string | null; thread_essence: number | null; target_status: string | null }>();
   return results.map((r) => ({
     id: r.id, targetType: r.target_type, targetId: r.target_id, reason: r.reason ?? "",
     label: r.target_label, time: formatRelativeTime(r.created_at),
     status: r.target_status ?? "missing", // 目标当前状态：published|hidden|deleted|missing（决定处置按钮组）
     content: (r.target_content ?? "").slice(0, 60),
+    essence: !!r.thread_essence,
   }));
 }
 
@@ -265,11 +309,16 @@ export async function getHotThreads(kv: KVNamespace, db: D1Database): Promise<Ho
 
 /* ========== 消息通知 05 ========== */
 
-export async function getNotices(db: D1Database, identityId: string): Promise<Notice[]> {
-  const { results } = await db.prepare(`
-    SELECT id, type, payload, read_at, created_at FROM notifications
-    WHERE identity_id=? ORDER BY created_at DESC LIMIT 50
-  `).bind(identityId).all<{ id: string; type: string; payload: string; read_at: string | null; created_at: string }>();
+export async function getNotices(db: D1Database, identityId: string, type?: "reply" | "hug" | "system"): Promise<Notice[]> {
+  const { results } = type
+    ? await db.prepare(`
+      SELECT id, type, payload, read_at, created_at FROM notifications
+      WHERE identity_id=? AND type=? ORDER BY created_at DESC LIMIT 50
+    `).bind(identityId, type).all<{ id: string; type: string; payload: string; read_at: string | null; created_at: string }>()
+    : await db.prepare(`
+      SELECT id, type, payload, read_at, created_at FROM notifications
+      WHERE identity_id=? ORDER BY created_at DESC LIMIT 50
+    `).bind(identityId).all<{ id: string; type: string; payload: string; read_at: string | null; created_at: string }>();
   return results.map((n) => {
     const p = JSON.parse(n.payload) as { main: string; sub?: string };
     return {

@@ -36,10 +36,10 @@ export const Layout: FC<PropsWithChildren<{ title: string; activeNav?: string; m
           <span class="logo-mark" />
           <span class="logo-text">空山</span>
         </a>
-        <div class="search">
+        <form class="search" action="/search" method="get">
           <span dangerouslySetInnerHTML={{ __html: SEARCH_ICON }} />
-          <span>搜索树洞里的心事…</span>
-        </div>
+          <input class="search-input" type="text" name="q" placeholder="搜索树洞里的心事…" maxlength={30} />
+        </form>
         <div class="topbar-actions">
           <span class="avatar">洞</span>
           <span class="topbar-user">洞友 #{me.displayNo}</span>

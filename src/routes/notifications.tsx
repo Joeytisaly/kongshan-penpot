@@ -13,9 +13,9 @@ const KIND_META: Record<Notice["kind"], { icon: string; bg: string }> = {
   system: { icon: SHIELD_ICON, bg: "var(--primary-light)" },
 };
 
-const TABS: Array<[string, boolean]> = [["全部", true], ["回复我的", false], ["收到的抱抱", false], ["站务通知", false]];
+const TABS: Array<[string, string | null]> = [["全部", null], ["回复我的", "reply"], ["收到的抱抱", "hug"], ["站务通知", "system"]];
 
-export const NotificationsPage: FC<{ me: Identity; notices: Notice[] }> = ({ me, notices }) => (
+export const NotificationsPage: FC<{ me: Identity; notices: Notice[]; activeType?: string | null }> = ({ me, notices, activeType = null }) => (
   <Layout title="消息通知" me={me}>
     <p class="crumb">空山 › 消息通知</p>
     <div class="notice-wrap">
@@ -28,8 +28,12 @@ export const NotificationsPage: FC<{ me: Identity; notices: Notice[] }> = ({ me,
         )}
       </div>
       <div class="notice-tabs">
-        {TABS.map(([label, act]) => (
-          <span class={act ? "board-chip active" : "board-chip"} key={label}>{label}</span>
+        {TABS.map(([label, type]) => (
+          <a
+            class={activeType === type ? "board-chip active" : "board-chip"}
+            href={type ? `/notifications?type=${type}` : "/notifications"}
+            key={label}
+          >{label}</a>
         ))}
       </div>
       {notices.length === 0 ? (
