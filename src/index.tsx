@@ -26,6 +26,7 @@ import { displayAuthor, formatCount } from "./lib/format";
 import { levelFromPosts } from "./lib/level";
 import { generateCaptcha, verifyCaptcha } from "./lib/captcha";
 import { ipRateLimit, ipRateRecord, riskCheck, riskRecord } from "./lib/risk";
+import { MOD_COOKIE, createModSession, timingSafeEqualStr, verifyModSession } from "./lib/modauth";
 import { bumpViews, createReply, createThread, deleteOwnReply, deleteOwnThread, flushViews, toggleFavorite, toggleHug } from "./db/writes";
 import type { Env } from "./types/env";
 
@@ -252,31 +253,36 @@ app.post("/delete", async (c) => {
   return c.redirect("/");
 });
 
-// 站务：MOD_PASS 密码登录 + 待审/举报队列
-const MOD_COOKIE = "mod_auth";
+// 站务：MOD_PASS 密码登录（P8-1：限频 + 签名会话令牌，原明文 cookie 方案退役）+ 待审/举报队列
 app.get("/mod", async (c) => {
   const pending = await getPendingThreads(c.env.DB);
   const reports = await getOpenReports(c.env.DB);
-  const authed = getCookie(c, MOD_COOKIE) === c.env.MOD_PASS;
+  const authed = await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS);
   return c.html(<ModPage me={toDisplay(c.get("identity"))} authed={authed} pending={pending} reports={reports} error={c.req.query("err") ? "密码不对哦。" : undefined} />);
 });
 app.post("/mod/login", async (c) => {
+  // 限频同 /login 语义：不论成败每 IP-HMAC 计数，5 次/小时防爆破
+  const ip = c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for") ?? null;
+  const limit = await ipRateLimit(c.env.KV, ip, "mod-login", 5, 3600);
+  if (!limit.ok) return c.redirect("/mod?err=1");
+  await ipRateRecord(c.env.KV, ip, "mod-login", 3600);
   const body = await c.req.parseBody();
-  if (String(body.pass ?? "") === c.env.MOD_PASS) {
-    setCookie(c, MOD_COOKIE, c.env.MOD_PASS, { httpOnly: true, sameSite: "Lax", path: "/mod", maxAge: 60 * 60 * 24 });
+  if (await timingSafeEqualStr(String(body.pass ?? ""), c.env.MOD_PASS)) {
+    const { token, maxAge } = await createModSession(c.env.MOD_PASS);
+    setCookie(c, MOD_COOKIE, token, { httpOnly: true, sameSite: "Lax", path: "/mod", maxAge });
     return c.redirect("/mod");
   }
   return c.redirect("/mod?err=1");
 });
 app.post("/mod/approve", async (c) => {
   const body = await c.req.parseBody();
-  if (getCookie(c, MOD_COOKIE) !== c.env.MOD_PASS) return c.redirect("/mod");
+  if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
   await c.env.DB.prepare("UPDATE threads SET status='published' WHERE id=? AND status='pending'").bind(String(body.id ?? "")).run();
   return c.redirect("/mod");
 });
 // 站务处置：隐藏（可逆暂隐）/ 恢复 / 删除（终态）；处置后自动关闭该目标全部未决举报
 app.post("/mod/hide", async (c) => {
-  if (getCookie(c, MOD_COOKIE) !== c.env.MOD_PASS) return c.redirect("/mod");
+  if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
   const body = await c.req.parseBody();
   const type = String(body.type) === "reply" ? "reply" : "thread";
   await c.env.DB.prepare(
@@ -291,7 +297,7 @@ app.post("/mod/hide", async (c) => {
 });
 
 app.post("/mod/restore", async (c) => {
-  if (getCookie(c, MOD_COOKIE) !== c.env.MOD_PASS) return c.redirect("/mod");
+  if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
   const body = await c.req.parseBody();
   const type = String(body.type) === "reply" ? "reply" : "thread";
   // 仅 hidden 可恢复（deleted 是终态）
@@ -308,7 +314,7 @@ app.post("/mod/restore", async (c) => {
 
 app.post("/mod/delete", async (c) => {
   const body = await c.req.parseBody();
-  if (getCookie(c, MOD_COOKIE) !== c.env.MOD_PASS) return c.redirect("/mod");
+  if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
   const id = String(body.id ?? "");
   const type = String(body.type) === "reply" ? "reply" : "thread";
   if (type === "reply") {
@@ -332,7 +338,7 @@ app.post("/mod/delete", async (c) => {
 });
 // 加精 toggle（P4-4：精华区的运营入口，举报队列帖子条目触发）
 app.post("/mod/essence", async (c) => {
-  if (getCookie(c, MOD_COOKIE) !== c.env.MOD_PASS) return c.redirect("/mod");
+  if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
   const body = await c.req.parseBody();
   await c.env.DB.prepare("UPDATE threads SET essence = 1 - essence WHERE id=?").bind(String(body.id ?? "")).run();
   return c.redirect("/mod");
@@ -340,7 +346,7 @@ app.post("/mod/essence", async (c) => {
 
 app.post("/mod/report-done", async (c) => {
   const body = await c.req.parseBody();
-  if (getCookie(c, MOD_COOKIE) !== c.env.MOD_PASS) return c.redirect("/mod");
+  if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
   await c.env.DB.prepare("UPDATE reports SET status='resolved' WHERE id=?").bind(String(body.id ?? "")).run();
   return c.redirect("/mod");
 });
