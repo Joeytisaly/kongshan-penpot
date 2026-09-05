@@ -23,7 +23,7 @@ export const BoardPage: FC<{
       </div>
       <div class="board-head-right">
         <p class="board-head-stats">主题 {boardStats.topics} · 帖子 {boardStats.posts}</p>
-        <a class="btn" href="/new">发新洞</a>
+        <a class="btn" href={`/new?board=${board.slug}`}>发新洞</a>
       </div>
     </div>
 

@@ -301,6 +301,9 @@ main.container { max-width: 1312px; margin: 0 auto; padding: 0 0 40px; }
   display: inline-flex; align-items: center; cursor: pointer;
 }
 .board-chip.active { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 500; }
+/* 发新洞版块 chips（P11-4）：选中态跟随真实 checked 的 radio——原静态 .active 永远
+   高亮第一个，点其他版块时视觉与提交值不一致。:has 不支持时无高亮（诚实降级） */
+label.board-chip:has(input:checked) { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 500; }
 .compose-input {
   height: 44px; border-radius: var(--r-input); background: var(--input-bg);
   border: 1px solid var(--border); padding: 0 16px; display: flex; align-items: center;

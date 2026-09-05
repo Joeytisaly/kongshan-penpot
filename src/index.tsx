@@ -134,9 +134,12 @@ app.get("/new", async (c) => {
   const [boards, unread] = await Promise.all([
     getBoards(c.env.KV, c.env.DB), getUnreadCount(c.env.DB, identity.id),
   ]);
+  // 版块上下文（P11-4）：版块页「发新洞」带 ?board=slug，校验后预选对应 radio（无效回落首个）
+  const qb = c.req.query("board") ?? "";
+  const selectedBoard = boards.some((b) => b.slug === qb) ? qb : boards[0]?.slug ?? "";
   // 风控触发：新身份 10 分钟内首发，需先答古诗验证码（默认免验证）
   const captcha = identityAgeMinutes(identity) < 10 ? await generateCaptcha(c.env.KV) : undefined;
-  return c.html(<NewThreadPage me={toDisplay(identity)} boards={boards} captcha={captcha} unread={unread} />);
+  return c.html(<NewThreadPage me={toDisplay(identity)} boards={boards} captcha={captcha} unread={unread} selectedBoard={selectedBoard} />);
 });
 
 app.get("/notifications", async (c) => {
@@ -358,34 +361,33 @@ app.post("/new", async (c) => {
   const identity = c.get("identity");
   const body = await c.req.parseBody();
   const ip = c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for") ?? null;
+  // 失败回填用（P11-4）：与 createThread 同口径截断，失败重渲染时不丢稿
+  const values = {
+    board: String(body.board ?? ""),
+    title: String(body.title ?? "").trim().slice(0, 40),
+    content: String(body.content ?? "").trim().slice(0, 500),
+  };
+  const rerender = async (extra: { error?: string; notice?: string; captcha?: { id: string; prompt: string } }) =>
+    c.html(<NewThreadPage me={toDisplay(identity)} boards={await getBoards(c.env.KV, c.env.DB)}
+      selectedBoard={values.board} values={values} {...extra} />);
   // 风控检查（发帖频率 + IP-HMAC 限流）
   const risk = await riskCheck(c.env.KV, c.env.DB, identity.id, ip, "thread");
-  if (!risk.ok) {
-    const boards = await getBoards(c.env.KV, c.env.DB);
-    return c.html(<NewThreadPage me={toDisplay(identity)} boards={boards} error={risk.reason} />);
-  }
+  if (!risk.ok) return rerender({ error: risk.reason });
   // 新身份 10 分钟内首发需过古诗验证码
   if (identityAgeMinutes(identity) < 10) {
     const pass = await verifyCaptcha(c.env.KV, String(body.captcha_id ?? ""), String(body.captcha_answer ?? ""));
     if (!pass) {
-      const boards = await getBoards(c.env.KV, c.env.DB);
       const fresh = await generateCaptcha(c.env.KV);
-      return c.html(<NewThreadPage me={toDisplay(identity)} boards={boards} captcha={fresh} error="古诗没答对哦。再试一次，答案就在题目里。" />);
+      return rerender({ captcha: fresh, error: "古诗没答对哦。再试一次，答案就在题目里。" });
     }
   }
   const result = await createThread(c.env.DB, identity.id, {
-    boardSlug: String(body.board ?? ""),
-    title: String(body.title ?? ""),
-    content: String(body.content ?? ""),
+    boardSlug: values.board, title: values.title, content: values.content,
   });
-  if (!result.ok) {
-    const boards = await getBoards(c.env.KV, c.env.DB);
-    return c.html(<NewThreadPage me={toDisplay(identity)} boards={boards} error={result.error} />);
-  }
+  if (!result.ok) return rerender({ error: result.error });
   await riskRecord(c.env.KV, identity.id, ip, "thread");
   if (result.pending) {
-    const boards = await getBoards(c.env.KV, c.env.DB);
-    return c.html(<NewThreadPage me={toDisplay(identity)} boards={boards} notice="心事已经放好，正在请洞务组过目。等它过审，就会出现在树洞里。" />);
+    return rerender({ notice: "心事已经放好，正在请洞务组过目。等它过审，就会出现在树洞里。" });
   }
   return c.redirect(`/t/${result.id}`);
 });
