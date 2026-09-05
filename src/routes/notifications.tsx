@@ -15,7 +15,7 @@ const KIND_META: Record<Notice["kind"], { icon: string; bg: string }> = {
 
 const TABS: Array<[string, string | null]> = [["全部", null], ["回复我的", "reply"], ["收到的抱抱", "hug"], ["站务通知", "system"]];
 
-export const NotificationsPage: FC<{ me: Identity; notices: Notice[]; activeType?: string | null; unread?: number }> = ({ me, notices, activeType = null, unread }) => (
+export const NotificationsPage: FC<{ me: Identity; notices: Notice[]; activeType?: string | null; page?: number; totalPages?: number; unread?: number }> = ({ me, notices, activeType = null, page = 1, totalPages = 1, unread }) => (
   <Layout title="消息通知" me={me} unread={unread}>
     <p class="crumb">空山 › 消息通知</p>
     <div class="notice-wrap">
@@ -60,6 +60,20 @@ export const NotificationsPage: FC<{ me: Identity; notices: Notice[]; activeType
           })}
         </section>
       )}
+      {totalPages > 1 && (
+        <div class="pagination">
+          <a class="page-btn" href={pageHref(activeType, Math.max(1, page - 1))}>上一页</a>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+            <a class={p === page ? "page-btn active" : "page-btn"} href={pageHref(activeType, p)} key={p}>{p}</a>
+          ))}
+          <a class="page-btn" href={pageHref(activeType, Math.min(totalPages, page + 1))}>下一页</a>
+          <span class="page-info">共 {totalPages} 页</span>
+        </div>
+      )}
     </div>
   </Layout>
 );
+
+function pageHref(type: string | null, p: number): string {
+  return type ? `/notifications?type=${type}&page=${p}` : `/notifications?page=${p}`;
+}

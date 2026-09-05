@@ -142,10 +142,11 @@ app.get("/notifications", async (c) => {
   const identity = c.get("identity");
   const t = c.req.query("type");
   const type = t === "reply" || t === "hug" || t === "system" ? t : undefined;
-  const [notices, unread] = await Promise.all([
-    getNotices(c.env.DB, identity.id, type), getUnreadCount(c.env.DB, identity.id),
+  const page = Math.max(1, Number(c.req.query("page")) || 1);
+  const [{ notices, page: pg, totalPages }, unread] = await Promise.all([
+    getNotices(c.env.DB, identity.id, { type, page }), getUnreadCount(c.env.DB, identity.id),
   ]);
-  return c.html(<NotificationsPage me={toDisplay(identity)} notices={notices} activeType={type ?? null} unread={unread} />);
+  return c.html(<NotificationsPage me={toDisplay(identity)} notices={notices} activeType={type ?? null} page={pg} totalPages={totalPages} unread={unread} />);
 });
 
 // 全部已读（P10-4：SQL 在 db/mod.ts）
@@ -179,10 +180,12 @@ app.get("/me", async (c) => {
 app.get("/search", async (c) => {
   const q = (c.req.query("q") ?? "").trim().slice(0, 30);
   const identity = c.get("identity");
-  const [threads, unread] = await Promise.all([
-    q ? searchThreads(c.env.DB, q) : Promise.resolve([]), getUnreadCount(c.env.DB, identity.id),
+  const page = Math.max(1, Number(c.req.query("page")) || 1);
+  const [res, unread] = await Promise.all([
+    q ? searchThreads(c.env.DB, q, page) : Promise.resolve({ threads: [], page: 1, totalPages: 1 }),
+    getUnreadCount(c.env.DB, identity.id),
   ]);
-  return c.html(<SearchPage me={toDisplay(identity)} q={q} threads={threads} unread={unread} />);
+  return c.html(<SearchPage me={toDisplay(identity)} q={q} threads={res.threads} page={res.page} totalPages={res.totalPages} unread={unread} />);
 });
 
 // 精华区（P4-4：导航已有入口，落地列表页）

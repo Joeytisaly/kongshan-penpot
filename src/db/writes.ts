@@ -206,18 +206,24 @@ export async function bumpViews(kv: KVNamespace, threadId: string): Promise<void
   await kv.put(VIEW_KEY(threadId), String((Number(await kv.get(VIEW_KEY(threadId))) || 0) + 1));
 }
 
-/** Cron：把 KV 累积的浏览数批量写回 D1 并清空 */
+/** Cron：把 KV 累积的浏览数批量写回 D1 并清空。
+ *  P10-5：kv.list 游标循环——单次 list 上限 1000 键，>1000 时逐页取完 */
 export async function flushViews(kv: KVNamespace, db: D1Database): Promise<number> {
-  const list = await kv.list({ prefix: "views:" });
-  if (list.keys.length === 0) return 0;
-  const batch = list.keys.map(async (k) => {
-    const n = Number(await kv.get(k.name)) || 0;
-    const threadId = k.name.slice("views:".length);
-    await db.prepare("UPDATE threads SET views = views + ? WHERE id = ?").bind(n, threadId).run();
-    await kv.delete(k.name);
-  });
-  await Promise.all(batch);
-  return list.keys.length;
+  let flushed = 0;
+  let cursor: string | undefined = undefined;
+  do {
+    const list: { keys: Array<{ name: string }>; list_complete: boolean; cursor?: string } =
+      await kv.list({ prefix: "views:", cursor });
+    await Promise.all(list.keys.map(async (k) => {
+      const n = Number(await kv.get(k.name)) || 0;
+      const threadId = k.name.slice("views:".length);
+      await db.prepare("UPDATE threads SET views = views + ? WHERE id = ?").bind(n, threadId).run();
+      await kv.delete(k.name);
+    }));
+    flushed += list.keys.length;
+    cursor = list.list_complete ? undefined : list.cursor;
+  } while (cursor);
+  return flushed;
 }
 
 /* ========== 身份生命周期（P10-4：懒签发与重置共用同一 INSERT，消灭双份 SQL） ========== */

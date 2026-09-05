@@ -4,7 +4,7 @@ import { Layout } from "../components/layout";
 import { EmptyState } from "../components/empty";
 import type { Identity, Thread } from "../lib/types";
 
-export const SearchPage: FC<{ me: Identity; q: string; threads: Thread[]; unread?: number }> = ({ me, q, threads, unread }) => (
+export const SearchPage: FC<{ me: Identity; q: string; threads: Thread[]; page?: number; totalPages?: number; unread?: number }> = ({ me, q, threads, page = 1, totalPages = 1, unread }) => (
   <Layout title={q ? `搜索：${q}` : "搜索"} me={me} unread={unread}>
     <p class="crumb">空山 › 搜索</p>
     <div class="board-head">
@@ -29,7 +29,7 @@ export const SearchPage: FC<{ me: Identity; q: string; threads: Thread[]; unread
         />
       ) : (
         threads.map((th) => (
-          <a class="thread-row" href={`/t/${th.id}`}>
+          <a class="thread-row" href={`/t/${th.id}`} key={th.id}>
             <span class="col-title">
               {th.essence && <span class="flag flag-essence">精</span>}
               <span class="thread-title">{th.title}</span>
@@ -42,6 +42,16 @@ export const SearchPage: FC<{ me: Identity; q: string; threads: Thread[]; unread
             </span>
           </a>
         ))
+      )}
+      {totalPages > 1 && (
+        <div class="pagination">
+          <a class="page-btn" href={`/search?q=${encodeURIComponent(q)}&page=${Math.max(1, page - 1)}`}>上一页</a>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+            <a class={p === page ? "page-btn active" : "page-btn"} href={`/search?q=${encodeURIComponent(q)}&page=${p}`} key={p}>{p}</a>
+          ))}
+          <a class="page-btn" href={`/search?q=${encodeURIComponent(q)}&page=${Math.min(totalPages, page + 1)}`}>下一页</a>
+          <span class="page-info">共 {totalPages} 页</span>
+        </div>
       )}
     </section>
   </Layout>

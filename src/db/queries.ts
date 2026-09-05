@@ -263,25 +263,38 @@ export async function getThreadDetail(
 
 /* ========== 搜索 / 精华区（P4-4：设计稿内元素落地） ========== */
 
-/** 搜索 published 帖子的标题与正文（LIKE 参数化；结果按抱抱数排序）。
- *  %/_ 按字面匹配：参数侧转义 + ESCAPE '\'（P8-6） */
-export async function searchThreads(db: D1Database, q: string, limit = 20): Promise<Thread[]> {
+/** 搜索 published 帖子的标题与正文（LIKE 参数化 + %/_ 字面转义；按抱抱数排序，分页）。
+ *  P10-5：返回带 total/totalPages 的分页结构 */
+export async function searchThreads(
+  db: D1Database,
+  q: string,
+  page = 1,
+  pageSize = 20,
+): Promise<{ threads: Thread[]; page: number; totalPages: number }> {
+  page = Math.max(1, page);
   const like = `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+  const where = `t.status='published' AND (t.title LIKE ? ESCAPE '\\' OR t.content LIKE ? ESCAPE '\\')`;
+  const total = (await db.prepare(`SELECT COUNT(*) AS n FROM threads t WHERE ${where}`)
+    .bind(like, like).first<{ n: number }>())?.n ?? 0;
   const { results } = await db.prepare(`
     SELECT t.id, t.title, t.reply_count, t.views, t.essence, i.display_no AS author_display,
       COALESCE(t.last_reply_at, t.created_at) AS last_reply_at, t.created_at
     FROM threads t JOIN identities i ON i.id=t.identity_id
-    WHERE t.status='published' AND (t.title LIKE ? ESCAPE '\\' OR t.content LIKE ? ESCAPE '\\')
-    ORDER BY t.hug_count DESC LIMIT ?
-  `).bind(like, like, limit).all<ThreadRow>();
-  return results.map((r) => ({
-    id: r.id, boardSlug: "", boardName: "",
-    title: r.title, author: displayAuthor(r.author_display),
-    replyCount: formatCount(r.reply_count), viewCount: formatCount(r.views),
-    pinned: !!r.pinned, essence: !!r.essence,
-    lastReplyUser: displayAuthor(r.author_display),
-    lastReplyTime: formatRelativeTime(r.last_reply_at ?? r.created_at),
-  }));
+    WHERE ${where}
+    ORDER BY t.hug_count DESC LIMIT ? OFFSET ?
+  `).bind(like, like, pageSize, (page - 1) * pageSize).all<ThreadRow>();
+  return {
+    threads: results.map((r) => ({
+      id: r.id, boardSlug: "", boardName: "",
+      title: r.title, author: displayAuthor(r.author_display),
+      replyCount: formatCount(r.reply_count), viewCount: formatCount(r.views),
+      pinned: !!r.pinned, essence: !!r.essence,
+      lastReplyUser: displayAuthor(r.author_display),
+      lastReplyTime: formatRelativeTime(r.last_reply_at ?? r.created_at),
+    })),
+    page,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  };
 }
 
 /** 精华区：跨版块 essence=1 的帖子，按最后活跃排序 */
@@ -367,23 +380,30 @@ export async function getUnreadCount(db: D1Database, identityId: string): Promis
   return r?.n ?? 0;
 }
 
-export async function getNotices(db: D1Database, identityId: string, type?: "reply" | "hug" | "system"): Promise<Notice[]> {
-  const { results } = type
-    ? await db.prepare(`
-      SELECT id, type, payload, read_at, created_at FROM notifications
-      WHERE identity_id=? AND type=? ORDER BY created_at DESC LIMIT 50
-    `).bind(identityId, type).all<{ id: string; type: string; payload: string; read_at: string | null; created_at: string }>()
-    : await db.prepare(`
-      SELECT id, type, payload, read_at, created_at FROM notifications
-      WHERE identity_id=? ORDER BY created_at DESC LIMIT 50
-    `).bind(identityId).all<{ id: string; type: string; payload: string; read_at: string | null; created_at: string }>();
-  return results.map((n) => {
+export async function getNotices(
+  db: D1Database,
+  identityId: string,
+  opts: { type?: "reply" | "hug" | "system"; page?: number } = {},
+): Promise<{ notices: Notice[]; page: number; totalPages: number }> {
+  const pageSize = 20;
+  const page = Math.max(1, opts.page ?? 1);
+  const where = opts.type ? "identity_id=? AND type=?" : "identity_id=?";
+  const bind: Array<string | number> = opts.type ? [identityId, opts.type] : [identityId];
+  const total = (await db.prepare(`SELECT COUNT(*) AS n FROM notifications WHERE ${where}`)
+    .bind(...bind).first<{ n: number }>())?.n ?? 0;
+  const { results } = await db.prepare(`
+    SELECT id, type, payload, read_at, created_at FROM notifications
+    WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?
+  `).bind(...bind, pageSize, (page - 1) * pageSize)
+    .all<{ id: string; type: string; payload: string; read_at: string | null; created_at: string }>();
+  const notices = results.map((n) => {
     const p = JSON.parse(n.payload) as { main: string; sub?: string };
     return {
       id: n.id, kind: (n.type === "reply" || n.type === "hug" || n.type === "system" ? n.type : "system") as Notice["kind"],
       main: p.main, sub: p.sub ?? "", time: formatRelativeTime(n.created_at), unread: !n.read_at,
     };
   });
+  return { notices, page, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
 /* ========== 我的树洞 06 ========== */
