@@ -345,40 +345,54 @@ export async function getModTargetSummary(db: D1Database, type: "thread" | "repl
 
 /* ========== 站务：待审 / 举报队列 ========== */
 
+const QUEUE_LIMIT = 50; // 队列单页上限（P12-3：防堆积撑爆页面，配合 total 提示剩余）
+
 export async function getPendingThreads(db: D1Database) {
-  const { results } = await db.prepare(`
-    SELECT t.id, t.title, t.content, t.created_at,
-      b.name AS board_name, i.display_no AS author_display
-    FROM threads t JOIN boards b ON b.id=t.board_id JOIN identities i ON i.id=t.identity_id
-    WHERE t.status='pending' ORDER BY t.created_at
-  `).all<{ id: string; title: string; content: string; created_at: string; board_name: string; author_display: number }>();
-  return results.map((r) => ({
-    id: r.id, title: r.title, content: r.content, boardName: r.board_name,
-    author: displayAuthor(r.author_display), time: formatRelativeTime(r.created_at),
-  }));
+  const [{ results }, total] = await Promise.all([
+    db.prepare(`
+      SELECT t.id, t.title, t.content, t.created_at,
+        b.name AS board_name, i.display_no AS author_display
+      FROM threads t JOIN boards b ON b.id=t.board_id JOIN identities i ON i.id=t.identity_id
+      WHERE t.status='pending' ORDER BY t.created_at LIMIT ?
+    `).bind(QUEUE_LIMIT).all<{ id: string; title: string; content: string; created_at: string; board_name: string; author_display: number }>(),
+    db.prepare("SELECT COUNT(*) AS n FROM threads WHERE status='pending'").first<{ n: number }>(),
+  ]);
+  return {
+    items: results.map((r) => ({
+      id: r.id, title: r.title, content: r.content, boardName: r.board_name,
+      author: displayAuthor(r.author_display), time: formatRelativeTime(r.created_at),
+    })),
+    total: total?.n ?? 0,
+  };
 }
 
 export async function getOpenReports(db: D1Database) {
-  const { results } = await db.prepare(`
-    SELECT r.id, r.target_type, r.target_id, r.reason, r.created_at,
-      COALESCE(t.title, '楼层#' || rp.floor) AS target_label,
-      COALESCE(rp.content, t.content) AS target_content,
-      t.essence AS thread_essence,
-      t.pinned AS thread_pinned,
-      CASE r.target_type WHEN 'thread' THEN t.status ELSE rp.status END AS target_status
-    FROM reports r
-    LEFT JOIN threads t ON r.target_type='thread' AND t.id=r.target_id
-    LEFT JOIN replies rp ON r.target_type='reply' AND rp.id=r.target_id
-    WHERE r.status='open' ORDER BY r.created_at
-  `).all<{ id: string; target_type: string; target_id: string; reason: string; created_at: string; target_label: string; target_content: string | null; thread_essence: number | null; thread_pinned: number | null; target_status: string | null }>();
-  return results.map((r) => ({
-    id: r.id, targetType: r.target_type, targetId: r.target_id, reason: r.reason ?? "",
-    label: r.target_label, time: formatRelativeTime(r.created_at),
-    status: r.target_status ?? "missing", // 目标当前状态：published|hidden|deleted|missing（决定处置按钮组）
-    content: (r.target_content ?? "").slice(0, 60),
-    essence: !!r.thread_essence,
-    pinned: !!r.thread_pinned,
-  }));
+  const [{ results }, total] = await Promise.all([
+    db.prepare(`
+      SELECT r.id, r.target_type, r.target_id, r.reason, r.created_at,
+        COALESCE(t.title, '楼层#' || rp.floor) AS target_label,
+        COALESCE(rp.content, t.content) AS target_content,
+        t.essence AS thread_essence,
+        t.pinned AS thread_pinned,
+        CASE r.target_type WHEN 'thread' THEN t.status ELSE rp.status END AS target_status
+      FROM reports r
+      LEFT JOIN threads t ON r.target_type='thread' AND t.id=r.target_id
+      LEFT JOIN replies rp ON r.target_type='reply' AND rp.id=r.target_id
+      WHERE r.status='open' ORDER BY r.created_at LIMIT ?
+    `).bind(QUEUE_LIMIT).all<{ id: string; target_type: string; target_id: string; reason: string; created_at: string; target_label: string; target_content: string | null; thread_essence: number | null; thread_pinned: number | null; target_status: string | null }>(),
+    db.prepare("SELECT COUNT(*) AS n FROM reports WHERE status='open'").first<{ n: number }>(),
+  ]);
+  return {
+    items: results.map((r) => ({
+      id: r.id, targetType: r.target_type, targetId: r.target_id, reason: r.reason ?? "",
+      label: r.target_label, time: formatRelativeTime(r.created_at),
+      status: r.target_status ?? "missing", // 目标当前状态：published|hidden|deleted|missing（决定处置按钮组）
+      content: (r.target_content ?? "").slice(0, 60),
+      essence: !!r.thread_essence,
+      pinned: !!r.thread_pinned,
+    })),
+    total: total?.n ?? 0,
+  };
 }
 
 /* ========== 热帖榜（首页右侧） ========== */

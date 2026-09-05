@@ -16,6 +16,8 @@ export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boo
     {detail.selfHarm && (
       <div class="notice-warm">
         <span>如果你正在经历特别难的时刻，请记得：心理援助热线 <b>12356</b> 一直在，树洞也一直在。</span>
+        {/* P12-3：横幅给出口而不只是号码——危机时刻多一次点击都会流失 */}
+        <a class="op-link" href="/b/shenye">想现在说说 → 深夜树洞</a>
       </div>
     )}
     <div class="thread-head-area">
@@ -62,12 +64,19 @@ export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boo
                   <span dangerouslySetInnerHTML={{ __html: BUBBLE_ICON }} /> 回复
                 </a>
                 <a class="floor-action link" href={`/t/${detail.id}?quote=${f.id}#reply`}>引用</a>
-                <form action="/report" method="post" class="floor-action-form">
-                  <input type="hidden" name="type" value={f.isOp ? "thread" : "reply"} />
-                  <input type="hidden" name="target" value={f.id} />
-                  <input type="hidden" name="return" value={`/t/${detail.id}`} />
-                  <button type="submit" class="floor-action">举报</button>
-                </form>
+                {/* P12-3：举报两步化（原生 details 折叠，no-JS 可用）——展开才见可选理由与确认按钮，
+                    让洞务拿到 triage 线索；闭合态外观与原按钮一致 */}
+                <details class="report-box">
+                  <summary class="floor-action">举报</summary>
+                  <form action="/report" method="post" class="report-form">
+                    <input type="hidden" name="type" value={f.isOp ? "thread" : "reply"} />
+                    <input type="hidden" name="target" value={f.id} />
+                    <input type="hidden" name="return" value={`/t/${detail.id}`} />
+                    <textarea class="report-reason" name="reason" rows={2} maxlength={100}
+                      placeholder="发生了什么？可以不填" aria-label="举报理由（可选）"></textarea>
+                    <button type="submit" class="floor-action link">提交举报</button>
+                  </form>
+                </details>
                 {f.canDelete && (
                   <form action="/delete" method="post" class="floor-action-form">
                     <input type="hidden" name="type" value={f.isOp ? "thread" : "reply"} />
@@ -92,6 +101,9 @@ export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boo
             </div>
           </form>
         </section>
+
+        {/* P12-3：长楼回到顶部（HTML5 #top 无需锚元素即滚动到页首） */}
+        <p class="back-top"><a class="floor-action link" href="#top">↑ 回到顶部</a></p>
       </div>
 
       <aside class="thread-side">

@@ -25,10 +25,12 @@ export const ModPage: FC<{
   me: Identity;
   authed: boolean;
   pending: ModItem[];
+  pendingTotal: number;
   reports: ReportItem[];
+  reportsTotal: number;
   unread?: number;
   error?: string;
-}> = ({ me, authed, pending, reports, unread, error }) => (
+}> = ({ me, authed, pending, pendingTotal, reports, reportsTotal, unread, error }) => (
   <Layout title="站务" activeNav="站务" me={me} unread={unread}>
     <p class="crumb">空山 › 站务</p>
     {!authed ? (
@@ -56,7 +58,7 @@ export const ModPage: FC<{
         <div class="mod-grid">
         <section class="card list-card">
           <header class="list-head">
-            <h2 class="card-title">待审心事（{pending.length}）</h2>
+            <h2 class="card-title">待审心事（{pendingTotal}）</h2>
           </header>
           {pending.length === 0 ? (
             <p class="mine-empty">队列是空的，一切都好。</p>
@@ -79,11 +81,14 @@ export const ModPage: FC<{
               </div>
             ))
           )}
+          {pendingTotal > pending.length && (
+            <p class="mine-empty">还有 {pendingTotal - pending.length} 条未显示（最多展示 50 条）。</p>
+          )}
         </section>
 
         <section class="card list-card">
           <header class="list-head">
-            <h2 class="card-title">举报队列（{reports.length}）</h2>
+            <h2 class="card-title">举报队列（{reportsTotal}）</h2>
           </header>
           {reports.length === 0 ? (
             <p class="mine-empty">没有待处理的举报。</p>
@@ -139,6 +144,9 @@ export const ModPage: FC<{
                 </div>
               );
             })
+          )}
+          {reportsTotal > reports.length && (
+            <p class="mine-empty">还有 {reportsTotal - reports.length} 条未显示（最多展示 50 条）。</p>
           )}
         </section>
         </div>
