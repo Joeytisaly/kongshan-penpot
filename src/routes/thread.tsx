@@ -1,6 +1,7 @@
 // 画板 03 热帖 · 盖楼详情（S12：数据来自 D1 查询层）
 import type { FC } from "hono/jsx";
 import { Layout } from "../components/layout";
+import { Pagination } from "../components/pagination";
 import { rules } from "../lib/static";
 import type { Floor, Identity } from "../lib/types";
 import type { ThreadDetail } from "../db/queries";
@@ -88,6 +89,11 @@ export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boo
             </div>
           </section>
         ))}
+
+        {/* 盖楼分页（P13-3）：楼层每页 20 楼；链接保留只看楼主态 */}
+        <Pagination page={detail.page} totalPages={detail.totalPages}
+          href={(p) => `/t/${detail.id}?page=${p}${onlyOp ? "&op=1" : ""}`}
+          info={`第 ${detail.page} / ${detail.totalPages} 页`} />
 
         <section class="card reply-card" id="reply">
           <h2 class="card-title">快速回复</h2>

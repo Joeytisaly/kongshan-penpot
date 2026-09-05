@@ -15,7 +15,7 @@ import { Layout } from "./components/layout";
 import { SearchPage } from "./routes/search";
 import { EssencePage } from "./routes/essence";
 import {
-  getBoardBySlug, getBoardHot, getBoardStats, getBoards, getCommunityStats, getEssenceThreads, getHotThreads,
+  floorToPage, getBoardBySlug, getBoardHot, getBoardStats, getBoards, getCommunityStats, getEssenceThreads, getHotThreads,
   getIdentityByCodeHash, getModTargetSummary, getMyFavorites, getMyReplies, getMyStats, getMyThreads, getMyTracks,
   getNotices, getQuotePreview, getUnreadCount, getOpenReports, getPendingThreads, getThreadDetail,
   getThreads, getWeekStats, isFavorited, searchThreads,
@@ -85,9 +85,10 @@ app.get("/b/:slug", async (c) => {
 
 app.get("/t/:id", async (c) => {
   const identity = c.get("identity");
-  // 只看楼主（P9-3）：?op=1 仅显示楼主楼层
+  // 只看楼主（P9-3）：?op=1 仅显示楼主楼层；盖楼分页（P13-3）：?page= 每页 20 楼
   const onlyOp = c.req.query("op") === "1";
-  const detail = await getThreadDetail(c.env.DB, c.req.param("id"), identity.id, { onlyOp });
+  const page = Math.max(1, Number(c.req.query("page")) || 1);
+  const detail = await getThreadDetail(c.env.DB, c.req.param("id"), identity.id, { onlyOp, page });
   if (!detail) return c.notFound();
   const favorited = await isFavorited(c.env.DB, identity.id, c.req.param("id"));
   const unread = await getUnreadCount(c.env.DB, identity.id);
@@ -168,7 +169,11 @@ app.post("/notifications/open", async (c) => {
     "UPDATE notifications SET read_at = datetime('now') WHERE id = ? AND identity_id = ? AND read_at IS NULL",
   ).bind(id, identity.id).run();
   const p = JSON.parse(row.payload) as { threadId?: string; floor?: number };
-  return c.redirect(p.threadId ? `/t/${p.threadId}${p.floor ? `#floor-${p.floor}` : ""}` : "/notifications");
+  // 楼层锚点换算目标页（P13-3）：楼层不在第 1 页时带上 ?page=
+  const jump = p.threadId
+    ? `/t/${p.threadId}${p.floor && p.floor > 20 ? `?page=${floorToPage(p.floor)}` : ""}${p.floor ? `#floor-${p.floor}` : ""}`
+    : "/notifications";
+  return c.redirect(jump);
 });
 
 app.get("/me", async (c) => {
@@ -503,7 +508,9 @@ app.post("/t/:id/reply", async (c) => {
   );
   if (!result.ok) return c.redirect(`/t/${threadId}?replyerr=1`);
   await riskRecord(c.env.KV, identity.id, ip, "reply");
-  return c.redirect(`/t/${threadId}#floor-${result.floor}`);
+  // 回帖后跳到新楼层——楼层不在第 1 页时带 ?page=（P13-3）
+  const replyPage = floorToPage(result.floor);
+  return c.redirect(`/t/${threadId}${replyPage > 1 ? `?page=${replyPage}` : ""}#floor-${result.floor}`);
 });
 
 // 抱抱 toggle（P9-1：回跳来源页；P10-3：动作限流 + 通知防骚扰在 writes 内）

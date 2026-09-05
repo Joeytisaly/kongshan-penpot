@@ -167,7 +167,13 @@ export interface ThreadDetail {
   floors: Floor[];
   participants: Array<{ no: string; mood: Mood }>;
   related: Array<[string, string]>;
+  page: number;        // 当前楼层数页（P13-3）
+  totalPages: number;  // 总页数 = ceil((1 楼主 + published 回复数)/20)
 }
+
+/** 每页楼层数（含 1 楼主）。楼层号 → 页码换算供通知跳转等使用（P13-3） */
+export const FLOORS_PER_PAGE = 20;
+export const floorToPage = (floor: number): number => Math.max(1, Math.ceil(floor / FLOORS_PER_PAGE));
 
 /** 楼层作者等级（P7-2）：identities.level 签发后从不更新，改由发言数（published 帖+回）
  *  经 levelFromPosts 实时计算（等级阈值唯一事实来源 lib/level.ts）。
@@ -191,7 +197,7 @@ export async function getThreadDetail(
   db: D1Database,
   threadId: string,
   identityId: string,
-  opts?: { onlyOp?: boolean },
+  opts?: { onlyOp?: boolean; page?: number },
 ): Promise<ThreadDetail | null> {
   const t = await db.prepare(`
     SELECT t.id, t.board_id, t.identity_id, t.title, t.content, t.views, t.reply_count, t.hug_count, t.created_at,
@@ -208,12 +214,19 @@ export async function getThreadDetail(
   }>();
   if (!t) return null;
 
-  const { results: replies } = await db.prepare(`
+  // 盖楼分页（P13-3）：每页 20 楼（1 楼主 + 回复），楼层号原值不因翻页改变。
+  // 只看楼主视图只有楼主一层，不翻页
+  const totalFloors = t.reply_count + 1;
+  const totalPages = opts?.onlyOp ? 1 : Math.max(1, Math.ceil(totalFloors / FLOORS_PER_PAGE));
+  const page = opts?.onlyOp ? 1 : Math.min(Math.max(1, opts?.page ?? 1), totalPages);
+
+  const replies = opts?.onlyOp ? { results: [] as Array<{ id: string; floor: number; identity_id: string; content: string; quote: string | null; hug_count: number; created_at: string; author_display: number }> } : await db.prepare(`
     SELECT r.id, r.floor, r.identity_id, r.content, r.quote, r.hug_count, r.created_at,
       i.display_no AS author_display
     FROM replies r JOIN identities i ON i.id=r.identity_id
-    WHERE r.thread_id=? AND r.status='published' ORDER BY r.floor
-  `).bind(threadId).all<{
+    WHERE r.thread_id=? AND r.status='published' AND r.floor BETWEEN ? AND ?
+    ORDER BY r.floor
+  `).bind(threadId, (page - 1) * FLOORS_PER_PAGE + 1, page * FLOORS_PER_PAGE).all<{
     id: string; floor: number; identity_id: string; content: string; quote: string | null; hug_count: number;
     created_at: string; author_display: number;
   }>();
@@ -231,7 +244,7 @@ export async function getThreadDetail(
       hugCount: t.hug_count, content: t.content,
     },
     // 只看楼主（P9-3）：仅楼主楼层，楼层号保留原值
-    ...(opts?.onlyOp ? [] : replies.map((r) => ({
+    ...(opts?.onlyOp ? [] : replies.results.map((r) => ({
       id: r.id, floorNo: r.floor,
       floorLabel: `${r.floor}楼${r.floor === 2 ? " · 沙发" : r.floor === 3 ? " · 板凳" : ""} · 发表于 ${formatDateTime(r.created_at)}`,
       author: displayAuthor(r.author_display), authorNo: String(r.author_display).padStart(4, "0"),
@@ -262,10 +275,10 @@ export async function getThreadDetail(
     id: t.id, boardSlug: t.board_slug, boardName: t.board_name, title: t.title,
     // 只看楼主/收藏由页面层渲染为链接与表单（P9-3），meta 只保留纯计数
     meta: `回复 ${formatCount(t.reply_count)} · 查看 ${formatCount(t.views)}`,
-    // 自伤判定覆盖楼主正文与全部可见楼层（P5-4：回复命中也触发 12356 横幅）
+    // 自伤判定（P5-4）：覆盖楼主正文与楼层——分页后（P13-3）为「楼主 + 当前页可见楼层」
     selfHarm: judgeContent(t.title + t.content) === "self-harm"
-      || replies.some((r) => judgeContent(r.content) === "self-harm"),
-    floors, participants, related,
+      || replies.results.some((r) => judgeContent(r.content) === "self-harm"),
+    floors, participants, related, page, totalPages,
   };
 }
 
