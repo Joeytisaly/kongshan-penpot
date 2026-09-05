@@ -468,15 +468,20 @@ app.post("/t/:id/reply", async (c) => {
   // 风控：每身份 1 分钟 3 条回复
   const risk = await riskCheck(c.env.KV, c.env.DB, identity.id, ip, "reply");
   if (!risk.ok) return c.redirect(`/t/${threadId}?err=1`);
-  // 引用快照服务端按 id 重新生成（P11-2）：表单 hidden 只携带目标 id，不接受用户提供的原文
+  // 引用快照服务端按 id 重新生成（P11-2）：表单 hidden 只携带目标 id，不接受用户提供的原文。
+  // P12-5：顺带带出被引用作者 id，供引用通知（排除自引与楼主在 createReply 内判定）
   let quote: string | undefined;
+  let quotedAuthorId: string | undefined;
   if (body.quote) {
     const hit = await getQuotePreview(c.env.DB, String(body.quote));
-    if (hit) quote = quoteSnapshot(hit);
+    if (hit) {
+      quote = quoteSnapshot(hit);
+      quotedAuthorId = hit.identity_id;
+    }
   }
   const result = await createReply(
     c.env.KV, c.env.DB, identity.id, threadId,
-    String(body.content ?? ""), quote,
+    String(body.content ?? ""), { quote, quotedAuthorId },
   );
   if (!result.ok) return c.redirect(`/t/${threadId}?replyerr=1`);
   await riskRecord(c.env.KV, identity.id, ip, "reply");

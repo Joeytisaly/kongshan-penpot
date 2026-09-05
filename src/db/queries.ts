@@ -144,14 +144,15 @@ export async function getBoardStats(db: D1Database, boardSlug: string) {
 
 /* ========== 盖楼详情 03 ========== */
 
-/** 引用预填（P4-4）：按楼层/帖子 id 取 published 内容与作者号（先查楼层再查帖子）。P10-4 自 index.tsx 收敛 */
-export async function getQuotePreview(db: D1Database, id: string): Promise<{ content: string; display_no: number } | null> {
+/** 引用预填（P4-4）：按楼层/帖子 id 取 published 内容与作者（先查楼层再查帖子）。
+ *  identity_id 供引用通知定位被引用作者（P12-5）。P10-4 自 index.tsx 收敛 */
+export async function getQuotePreview(db: D1Database, id: string): Promise<{ content: string; display_no: number; identity_id: string } | null> {
   return await db.prepare(
-    "SELECT r.content, i.display_no FROM replies r JOIN identities i ON i.id=r.identity_id WHERE r.id=? AND r.status='published'",
-  ).bind(id).first<{ content: string; display_no: number }>()
+    "SELECT r.content, i.display_no, r.identity_id FROM replies r JOIN identities i ON i.id=r.identity_id WHERE r.id=? AND r.status='published'",
+  ).bind(id).first<{ content: string; display_no: number; identity_id: string }>()
     ?? await db.prepare(
-      "SELECT t.content, i.display_no FROM threads t JOIN identities i ON i.id=t.identity_id WHERE t.id=? AND t.status='published'",
-    ).bind(id).first<{ content: string; display_no: number }>();
+      "SELECT t.content, i.display_no, t.identity_id FROM threads t JOIN identities i ON i.id=t.identity_id WHERE t.id=? AND t.status='published'",
+    ).bind(id).first<{ content: string; display_no: number; identity_id: string }>();
 }
 
 /** 登录：按身份码哈希找身份（P10-4 自 index.tsx 收敛） */
