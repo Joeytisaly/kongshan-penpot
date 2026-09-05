@@ -77,14 +77,16 @@ export async function createThread(
 /** 回复：楼层号自增（事务内 max+1），同步回复数/最后回复时间，可选引用；违规词直接拒绝。
  *  kv 用于 IP 限流记账与通知收件箱保护（P12-2）。
  *  opts.quotedAuthorId：被引用楼层/帖子的作者（P12-5）——通知被引用者（排除自引与楼主，
- *  楼主已由回复通知覆盖，防双重通知） */
+ *  楼主已由回复通知覆盖，防双重通知）。
+ *  opts.replyToFloor/replyToAuthorId：回复归属（P14-4）——楼层落库「回复 @N 楼」标记，
+ *  被回复者收「回复了你的楼层」通知（同样排除自引与楼主） */
 export async function createReply(
   kv: KVNamespace,
   db: D1Database,
   identityId: string,
   threadId: string,
   content: string,
-  opts: { quote?: string; quotedAuthorId?: string } = {},
+  opts: { quote?: string; quotedAuthorId?: string; replyToFloor?: number; replyToAuthorId?: string } = {},
 ): Promise<{ ok: true; floor: number } | { ok: false; error: string }> {
   const text = content.trim().slice(0, 300);
   if (!text) return { ok: false, error: "说点什么吧。" };
@@ -102,9 +104,10 @@ export async function createReply(
 
   const res = await db.batch([
     db.prepare(
-      `INSERT INTO replies (id, thread_id, floor, identity_id, content, quote, created_at)
-       SELECT ?, ?, COALESCE(MAX(floor), 1) + 1, ?, ?, ?, ? FROM replies WHERE thread_id = ?`,
-    ).bind(id, threadId, identityId, text, opts.quote ? opts.quote.slice(0, 120) : null, now, threadId),
+      `INSERT INTO replies (id, thread_id, floor, identity_id, content, quote, reply_to_floor, reply_to_author, created_at)
+       SELECT ?, ?, COALESCE(MAX(floor), 1) + 1, ?, ?, ?, ?, ?, ? FROM replies WHERE thread_id = ?`,
+    ).bind(id, threadId, identityId, text, opts.quote ? opts.quote.slice(0, 120) : null,
+      opts.replyToFloor ?? null, opts.replyToAuthorId ?? null, now, threadId),
     db.prepare("UPDATE threads SET reply_count = reply_count + 1, last_reply_at = ? WHERE id = ?").bind(now, threadId),
   ]);
   if (res.some((r) => !r.success)) return { ok: false, error: "回应没有发出去，再试一次。" };
@@ -129,6 +132,15 @@ export async function createReply(
   if (opts.quotedAuthorId && opts.quotedAuthorId !== identityId && opts.quotedAuthorId !== thread.identity_id && replier && th) {
     await notify(kv, db, opts.quotedAuthorId, "reply", {
       main: `${displayAuthor(replier.display_no)} 在「${th.title.slice(0, 12)}…」中引用了你的楼层`,
+      sub: text.slice(0, 30),
+      threadId, floor,
+    });
+  }
+  // 回复归属通知（P14-4）：被回复楼层作者——排除自引与楼主（楼主已由上方回复通知覆盖）
+  if (opts.replyToAuthorId && opts.replyToFloor && opts.replyToAuthorId !== identityId
+    && opts.replyToAuthorId !== thread.identity_id && replier && th) {
+    await notify(kv, db, opts.replyToAuthorId, "reply", {
+      main: `${displayAuthor(replier.display_no)} 回复了你的楼层（${opts.replyToFloor} 楼）`,
       sub: text.slice(0, 30),
       threadId, floor,
     });

@@ -47,6 +47,7 @@ export interface Floor {
   canDelete?: boolean; // 是否当前洞友发布且在 10 分钟窗口内（渲染「删除」按钮的唯一依据，服务端算好）
   content: string;
   quote?: string; // 引用块文案
+  replyTo?: { floor: number; author?: string }; // 回复归属（P14-4）：楼层顶部「回复 @N 楼」标记
   hugCount: number;
 }
 

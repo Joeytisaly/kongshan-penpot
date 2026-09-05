@@ -92,6 +92,8 @@ CREATE TABLE replies (
   floor INTEGER NOT NULL,               -- 楼层号（事务内自增）
   identity_id TEXT NOT NULL REFERENCES identities(id),
   content TEXT NOT NULL, quote TEXT,    -- 引用快照文本（引用楼层时服务端生成）
+  reply_to_floor INTEGER,               -- 回复归属楼层号（P14-4，可空）
+  reply_to_author TEXT,                 -- 回复归属作者 identity_id（可空）
   hug_count INTEGER DEFAULT 0,
   status TEXT DEFAULT 'published',
   created_at TEXT DEFAULT (datetime('now'))
@@ -150,9 +152,9 @@ CREATE INDEX idx_fav_owner ON favorites(identity_id, created_at DESC);
 |---|---|---|---|
 | `/` | GET | 版块广场（含热帖榜） | 01 |
 | `/b/:slug` | GET | 版块帖子列表（?page=） | 02 |
-| `/t/:id` | GET | 盖楼详情（浏览+1；楼层每页 20 楼分页 `?page=`，P13-3；自伤横幅覆盖楼主+当前页可见楼层） | 03 |
+| `/t/:id` | GET | 盖楼详情（浏览+1；楼层每页 20 楼分页 `?page=`，P13-3；`?reply=` 回复归属预览 P14-4；自伤横幅覆盖楼主+当前页可见楼层） | 03 |
 | `/new` | GET/POST | 发新洞（风控+验证码+审核） | 04 |
-| `/t/:id/reply` | POST | 回复（楼层自增，限流；引用快照由服务端按表单携带的 quote 目标 id 重新生成，不接受用户提供的原文——P11-2） | 03 |
+| `/t/:id/reply` | POST | 回复（楼层自增，限流；引用快照由服务端按表单携带的 quote 目标 id 重新生成——P11-2；replyTarget 带回复归属并通知被回复者——P14-4） | 03 |
 | `/hug` | POST | 抱抱（幂等 toggle） | 02/03 |
 | `/favorite` | POST | 收藏（幂等 toggle） | 03/06 |
 | `/report` | POST | 举报（达 3 次自动隐藏；IP-HMAC 5 次/小时限流） | 03 |
@@ -214,6 +216,10 @@ npx wrangler d1 export kongshan-db-prod --remote --output=backup-$(date +%F).sql
   数字**对待，官方不依据其做任何权益分配。
 - **洞友编号 9000 槽位可撞号**：display_no 由码哈希推导（对身份稳定但非全局唯一），百余
   用户同帖撞号概率显著。消歧方案（如 `#4821·2` 后缀）待用户量起来后评估。
+- **待审帖对作者不可见、洞务无主动提醒**：命中违规词的帖子进 pending 后，作者在「我的
+  树洞」看不到、详情页 404，洞务只能打开 /mod 发现（P14 走查未命中该路径，故未实施可见
+  化）。触发条件：待审真实发生且造成困惑时——方案：/me 放行自己的 pending 帖 +「待审中」
+  徽标、站务入口红点。
 - **版块列表无排序切换**：仅「最后活跃」单一排序（置顶优先）。最新发布/最多抱抱切换待需求。
 - **搜索不含楼层内容**：仅帖子标题+正文。楼层检索需 FTS5 与索引维护，成本较高，待需求。
 - **站务会话无服务端吊销**：mod_auth 为无状态签名令牌，「退出」= 浏览器删 cookie；已拷贝

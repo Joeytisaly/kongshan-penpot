@@ -17,7 +17,7 @@ import { EssencePage } from "./routes/essence";
 import {
   floorToPage, getBoardBySlug, getBoardHot, getBoardStats, getBoards, getCommunityStats, getEssenceThreads, getHotThreads,
   getIdentityByCodeHash, getModTargetSummary, getMyFavorites, getMyReplies, getMyStats, getMyThreads, getMyTracks,
-  getNotices, getQuotePreview, getUnreadCount, getOpenReports, getPendingThreads, getThreadDetail,
+  getNotices, getQuotePreview, getReplyTarget, getUnreadCount, getOpenReports, getPendingThreads, getThreadDetail,
   getThreads, getWeekStats, isFavorited, searchThreads,
 } from "./db/queries";
 import {
@@ -112,9 +112,16 @@ app.get("/t/:id", async (c) => {
     const hit = await getQuotePreview(c.env.DB, quoteId);
     if (hit) quotePreview = quoteSnapshot(hit);
   }
+  // 回复归属（P14-4）：「回复」按钮携带楼层目标，回复框显示轻量归属预览（不摘录全文）
+  const replyTargetId = c.req.query("reply");
+  let replyPreview: string | undefined;
+  if (replyTargetId) {
+    const target = await getReplyTarget(c.env.DB, replyTargetId);
+    if (target) replyPreview = `回复 ${displayAuthor(target.displayNo)}（${target.floor} 楼）`;
+  }
   // 浏览计数：KV 累积，Cron 每 10 分钟落库
   c.executionCtx.waitUntil(bumpViews(c.env.KV, c.req.param("id")));
-  return c.html(<ThreadPage me={toDisplay(identity)} detail={detail} favorited={favorited} onlyOp={onlyOp} unread={unread} error={error} actionNotice={actionNotice} quotePreview={quotePreview} quoteId={quoteId} />);
+  return c.html(<ThreadPage me={toDisplay(identity)} detail={detail} favorited={favorited} onlyOp={onlyOp} unread={unread} error={error} actionNotice={actionNotice} quotePreview={quotePreview} quoteId={quoteId} replyTargetPreview={replyPreview} replyTargetId={replyTargetId} />);
 });
 
 // 收藏 toggle（P9-1：回跳来源页；P10-3：动作限流）
@@ -526,9 +533,19 @@ app.post("/t/:id/reply", async (c) => {
       quotedAuthorId = hit.identity_id;
     }
   }
+  // 回复归属（P14-4）：服务端按 id 解析目标（防伪造），落库 reply_to_floor/author 并通知被回复者
+  let replyToFloor: number | undefined;
+  let replyToAuthorId: string | undefined;
+  if (body.replyTarget) {
+    const target = await getReplyTarget(c.env.DB, String(body.replyTarget));
+    if (target) {
+      replyToFloor = target.floor;
+      replyToAuthorId = target.authorId;
+    }
+  }
   const result = await createReply(
     c.env.KV, c.env.DB, identity.id, threadId,
-    content, { quote, quotedAuthorId },
+    content, { quote, quotedAuthorId, replyToFloor, replyToAuthorId },
   );
   if (!result.ok) return failRender(result.error);
   await riskRecord(c.env.KV, identity.id, ip, "reply");

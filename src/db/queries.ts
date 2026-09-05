@@ -160,6 +160,19 @@ export async function getIdentityByCodeHash(db: D1Database, codeHash: string): P
   return await db.prepare("SELECT * FROM identities WHERE code_hash = ?").bind(codeHash).first<IdentityRow>();
 }
 
+/** 回复目标解析（P14-4）：楼层 id 或帖子 id → 归属信息。仅 published 可作为目标 */
+export async function getReplyTarget(db: D1Database, id: string): Promise<{ displayNo: number; floor: number; authorId: string } | null> {
+  const rep = await db.prepare(
+    "SELECT r.floor, r.identity_id, i.display_no FROM replies r JOIN identities i ON i.id=r.identity_id WHERE r.id=? AND r.status='published'",
+  ).bind(id).first<{ floor: number; identity_id: string; display_no: number }>();
+  if (rep) return { displayNo: rep.display_no, floor: rep.floor, authorId: rep.identity_id };
+  const th = await db.prepare(
+    "SELECT t.identity_id, i.display_no FROM threads t JOIN identities i ON i.id=t.identity_id WHERE t.id=? AND t.status='published'",
+  ).bind(id).first<{ identity_id: string; display_no: number }>();
+  if (th) return { displayNo: th.display_no, floor: 1, authorId: th.identity_id };
+  return null;
+}
+
 export interface ThreadDetail {
   id: string; boardSlug: string; boardName: string; title: string;
   meta: string;
@@ -175,10 +188,10 @@ export interface ThreadDetail {
 export const FLOORS_PER_PAGE = 20;
 export const floorToPage = (floor: number): number => Math.max(1, Math.ceil(floor / FLOORS_PER_PAGE));
 
-/** 楼层作者等级（P7-2）：identities.level 签发后从不更新，改由发言数（published 帖+回）
- *  经 levelFromPosts 实时计算（等级阈值唯一事实来源 lib/level.ts）。
+/** 楼层作者等级 + 展示号（P7-2 / P14-4）：identities.level 签发后从不更新，等级由发言数
+ *  经 levelFromPosts 实时计算；displayNo 供回复归属标记解析（不落死列，P7 教训）。
  *  一次查询覆盖全楼参与作者（楼主 + 已见楼层作者），避免逐行相关子查询。 */
-async function getAuthorLevels(db: D1Database, threadId: string): Promise<Map<string, string>> {
+async function getAuthorLevels(db: D1Database, threadId: string): Promise<Map<string, { level: string; displayNo: number }>> {
   const { results } = await db.prepare(`
     SELECT i.id, i.display_no,
       (SELECT COUNT(*) FROM threads tt WHERE tt.identity_id = i.id AND tt.status='published')
@@ -188,9 +201,14 @@ async function getAuthorLevels(db: D1Database, threadId: string): Promise<Map<st
       SELECT identity_id FROM threads WHERE id = ?
       UNION
       SELECT identity_id FROM replies WHERE thread_id = ? AND status='published'
+      UNION
+      SELECT reply_to_author FROM replies WHERE thread_id = ? AND reply_to_author IS NOT NULL
     )
-  `).bind(threadId, threadId).all<{ id: string; display_no: number; speak: number }>();
-  return new Map(results.map((r) => [r.id, r.display_no === 0 ? "洞务" : levelFromPosts(r.speak).level]));
+  `).bind(threadId, threadId, threadId).all<{ id: string; display_no: number; speak: number }>();
+  return new Map(results.map((r) => [r.id, {
+    level: r.display_no === 0 ? "洞务" : levelFromPosts(r.speak).level,
+    displayNo: r.display_no,
+  }]));
 }
 
 export async function getThreadDetail(
@@ -225,16 +243,16 @@ export async function getThreadDetail(
   const page = opts?.onlyOp ? 1 : Math.min(Math.max(1, opts?.page ?? 1), totalPages);
 
   const replies = opts?.onlyOp
-    ? { results: [] as Array<{ id: string; floor: number; identity_id: string; content: string; quote: string | null; hug_count: number; created_at: string; author_display: number }> }
+    ? { results: [] as Array<{ id: string; floor: number; identity_id: string; content: string; quote: string | null; hug_count: number; created_at: string; author_display: number; reply_to_floor: number | null; reply_to_author: string | null }> }
     : await db.prepare(`
         SELECT r.id, r.floor, r.identity_id, r.content, r.quote, r.hug_count, r.created_at,
-          i.display_no AS author_display
+          r.reply_to_floor, r.reply_to_author, i.display_no AS author_display
         FROM replies r JOIN identities i ON i.id=r.identity_id
         WHERE r.thread_id=? AND r.status='published' AND r.floor BETWEEN ? AND ?
         ORDER BY r.floor
       `).bind(threadId, (page - 1) * FLOORS_PER_PAGE + 1, page * FLOORS_PER_PAGE).all<{
         id: string; floor: number; identity_id: string; content: string; quote: string | null; hug_count: number;
-        created_at: string; author_display: number;
+        created_at: string; author_display: number; reply_to_floor: number | null; reply_to_author: string | null;
       }>();
 
   const levelMap = await getAuthorLevels(db, threadId);
@@ -244,7 +262,7 @@ export async function getThreadDetail(
     {
       id: t.id, floorNo: 1, floorLabel: `1楼 · 发表于 ${formatDateTime(t.created_at)}`,
       author: displayAuthor(t.author_display), authorNo,
-      level: levelMap.get(t.identity_id) ?? "一叶",
+      level: levelMap.get(t.identity_id)?.level ?? "一叶",
       mood: t.board_mood, isOp: true,
       canDelete: t.identity_id === identityId && ageMinutes(t.created_at) < 10,
       hugCount: t.hug_count, content: t.content,
@@ -254,10 +272,20 @@ export async function getThreadDetail(
       id: r.id, floorNo: r.floor,
       floorLabel: `${r.floor}楼${r.floor === 2 ? " · 沙发" : r.floor === 3 ? " · 板凳" : ""} · 发表于 ${formatDateTime(r.created_at)}`,
       author: displayAuthor(r.author_display), authorNo: String(r.author_display).padStart(4, "0"),
-      level: levelMap.get(r.identity_id) ?? "一叶", mood: t.board_mood, isOp: false,
+      level: levelMap.get(r.identity_id)?.level ?? "一叶", mood: t.board_mood, isOp: false,
       canDelete: r.identity_id === identityId && ageMinutes(r.created_at) < 10,
       hugCount: r.hug_count,
       content: r.content, quote: r.quote ?? undefined,
+      // 回复归属（P14-4）：作者名经 levelMap 实时解析（目标作者不在册时降级为仅 @N 楼）
+      replyTo: r.reply_to_floor != null
+        ? {
+            floor: r.reply_to_floor,
+            author: (() => {
+              const d = r.reply_to_author ? levelMap.get(r.reply_to_author)?.displayNo : undefined;
+              return d != null ? displayAuthor(d) : undefined;
+            })(),
+          }
+        : undefined,
     }))),
   ];
 
