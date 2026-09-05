@@ -41,6 +41,10 @@ Cloudflare Worker（Hono + hono/jsx SSR）
 | IP 隐私 | `HMAC(IP, 每日轮换盐)` 限流 10 帖/小时，原始 IP 永不落盘 | ✓ S18 |
 | 关键词分级 | `src/lib/words.ts`：违规词→pending 待审；自伤词→正常发布+12356 横幅；严重词→直接拒绝 | ✓ S19 |
 | 举报 | 达 3 次自动隐藏（status=hidden），进站务队列 | ✓ S19 |
+| 举报限流 | IP-HMAC 5 次/小时（防清 Cookie 换身份刷举报隐藏） | ✓ P4-1 |
+| 登录限频 | 身份码登录 IP-HMAC 5 次/小时，防爆破 | ✓ P4-1 |
+| 用户自助删除 | 发布 10 分钟内可删除自己的帖/楼层（软删 deleted，洞务可恢复；验证码场景时间解析失败从严、删除场景从紧） | ✓ P4-2 |
+| 站务处置 | 隐藏（可逆）/ 恢复 / 删除（终态），处置自动关闭未决举报 | ✓ P4-3 |
 | 站务页 | `/mod` 用 `MOD_PASS` 密钥登录，待审过审/删除、举报处理 | ✓ S19 |
 
 **词库文件 `src/lib/words.ts` 是审核的唯一事实来源**，扩充词条只需追加数组。
@@ -51,6 +55,7 @@ Cloudflare Worker（Hono + hono/jsx SSR）
 CREATE TABLE boards (
   id TEXT PRIMARY KEY, slug TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL, description TEXT, mood TEXT,
+  icon_char TEXT NOT NULL DEFAULT '',    -- 版块图标单字（如 "夜"）
   sort INTEGER DEFAULT 0
 );
 
@@ -74,13 +79,14 @@ CREATE TABLE threads (
   status TEXT DEFAULT 'published',      -- published|pending|hidden|deleted
   created_at TEXT DEFAULT (datetime('now')), last_reply_at TEXT
 );
-CREATE INDEX idx_threads_board ON threads(board_id, status, last_reply_at DESC);
+CREATE INDEX idx_threads_board ON threads(board_id, status, pinned DESC, last_reply_at DESC);
+CREATE INDEX idx_threads_hot ON threads(status, hug_count DESC);
 
 CREATE TABLE replies (
   id TEXT PRIMARY KEY, thread_id TEXT NOT NULL REFERENCES threads(id),
   floor INTEGER NOT NULL,               -- 楼层号（事务内自增）
   identity_id TEXT NOT NULL REFERENCES identities(id),
-  content TEXT NOT NULL, quote_reply_id TEXT,
+  content TEXT NOT NULL, quote TEXT,    -- 引用快照文本（引用楼层时服务端生成）
   hug_count INTEGER DEFAULT 0,
   status TEXT DEFAULT 'published',
   created_at TEXT DEFAULT (datetime('now'))
@@ -119,6 +125,7 @@ CREATE TABLE favorites (
   created_at TEXT DEFAULT (datetime('now')),
   UNIQUE(identity_id, thread_id)
 );
+CREATE INDEX idx_fav_owner ON favorites(identity_id, created_at DESC);
 ```
 
 ## 5. 路由表（Hono）

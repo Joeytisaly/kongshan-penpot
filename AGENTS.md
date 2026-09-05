@@ -29,7 +29,7 @@
 | `assets/tokens.css`（设计变量） | 全部页面 + docs/DESIGN.md |
 | `src/components/layout.tsx`（顶栏/导航/页脚） | 全部 6 个路由页（逐页冒烟回归） |
 | `src/lib/types.ts`（数据契约） | 全部 routes + lib + 未来 D1 查询层 |
-| `src/lib/mock.ts`（mock 数据） | 引用它的页面 + 与 types.ts 的一致性 |
+| `src/db/queries.ts` / `src/db/writes.ts`（数据层） | 全部 routes 页面 + 与 types.ts 契约的一致性 |
 | 路由路径（如 `/b/:slug`） | 所有内部链接 + docs/ARCHITECTURE.md 路由表 |
 | docs/DESIGN.md（设计规范） | tokens.css + 受影响页面 |
 | docs/ARCHITECTURE.md（架构决策） | 对应代码模块 + PROGRESS.md |
@@ -38,7 +38,7 @@
 - 大任务切成可独立验收的片，每片在 PROGRESS.md 里有明确验收标准
 - 每片完成必须过门：`npx tsc --noEmit`（编译零错误）+ `wrangler dev` 冒烟（curl 关键标记或截图）
 - **过门后先更新 PROGRESS.md，再开始下一片**
-- 涉及共享层（layout/tokens/types/mock）的切片过门后，已完成的页面全部重新冒烟一次防回归
+- 涉及共享层（layout/tokens/types/queries）的切片过门后，已完成的页面全部重新冒烟一次防回归
 - **不许带病推进**：门没过，不开始下一片
 
 ## 3. 技术约定
@@ -49,11 +49,11 @@
 - 静态资源：Workers Static Assets（`assets/` 目录）
 - 常用命令：`npm run dev` / `npm run deploy` / `npm run typecheck` / `npm run db:migrate`
 - 密钥：一律 `wrangler secret` 或 `.dev.vars`，**永不提交**
-- 契约先行：`src/lib/types.ts` 是页面层与数据层之间的唯一契约；页面只依赖类型不依赖数据来源（mock 或 D1 可互换）
+- 契约先行：`src/lib/types.ts` 是页面层与数据层之间的唯一契约；页面只依赖类型不依赖数据来源（P0 曾用 mock，自 P1 起为 D1 查询层，契约保证两者可互换）
 
 ## 4. 代码规范
 
-- 目录：`src/routes`（页面与 API）、`src/components`（共享组件）、`src/lib`（身份/风控/审核/契约/mock）、`src/db`（migration 与查询）、`assets/`（CSS/字体）
+- 目录：`src/routes`（页面与 API）、`src/components`（共享组件）、`src/lib`（身份/风控/审核/契约/缓存/展示格式化）、`src/db`（migration 与查询）、`assets/`（CSS/字体）
 - 样式：只用 `tokens.css` 里的设计变量，**禁止硬编码色值**（色板见 docs/DESIGN.md）
 - 命名：路由与文件 kebab-case；DB 字段 snake_case；TS 标识符 camelCase
 - 每个路由文件顶部注释：对应 Penpot 画板编号（如 `// 画板 02 帖子列表`）
