@@ -21,11 +21,11 @@ Cloudflare Worker（Hono + hono/jsx SSR）
 
 **模型：凭证即身份，Cookie 免登，身份码兜底。**
 
-- **签发**：首次访问生成 `identity_id` 与身份码 `KS-XXXX-XXXX-XXXX-XXXX`（4 组 16 字符 = 80 位熵；Crockford base32，剔除 0/O/1/I/L），服务端只存 `SHA-256(code + pepper)`；同时下发 HttpOnly Cookie（`SameSite=Lax`，1 年）
+- **签发**：首次访问生成 `identity_id` 与身份码 `KS-XXXX-XXXX-XXXX-XXXX`（4 组 16 字符 = 80 位熵；Crockford base32，剔除易混淆的 O/I/L——0/1 保留，生成字母表与校验正则一致），服务端只存 `SHA-256(码:pepper)`；同时下发 HttpOnly Cookie（`SameSite=Lax`，1 年）
 - **展示**：`display_no = hash % 9000 + 1000` → 「洞友 #4821」
 - **日常**：Cookie 免登，用户无感
 - **恢复**：换设备/丢 Cookie → 输入身份码登录（接口限频：每 IP-HMAC 5 次/小时，防爆破）
-- **重置**：用户可主动重置身份（旧身份码作废，新签发）
+- **重置**：用户可主动重置身份（旧身份码作废——code_hash 改写为 `revoked:` 占位，身份行保留供历史楼层归属；其他设备上的旧 Cookie 不在作废范围，MVP 承诺仅限身份码本身）
 - **边界**：浏览公开内容无需身份；身份码只管发帖/回复/抱抱/通知/我的树洞
 - **pepper** 存于 `wrangler secret`，轮换时需批量重哈希（记录在案，MVP 不实现）
 
@@ -134,7 +134,7 @@ CREATE INDEX idx_fav_owner ON favorites(identity_id, created_at DESC);
 |---|---|---|---|
 | `/` | GET | 版块广场（含热帖榜） | 01 |
 | `/b/:slug` | GET | 版块帖子列表（?page=） | 02 |
-| `/t/:id` | GET | 盖楼详情（?page=，浏览+1） | 03 |
+| `/t/:id` | GET | 盖楼详情（浏览+1；楼层当前全量加载，千楼级再补分页） | 03 |
 | `/new` | GET/POST | 发新洞（风控+验证码+审核） | 04 |
 | `/t/:id/reply` | POST | 回复（楼层自增，限流） | 03 |
 | `/hug` | POST | 抱抱（幂等 toggle） | 02/03 |
@@ -155,6 +155,7 @@ CREATE INDEX idx_fav_owner ON favorites(identity_id, created_at DESC);
 - `robots.txt` 禁止一切收录；响应头 `X-Robots-Tag: noindex`
 - 安全头：CSP / X-Content-Type-Options / Referrer-Policy
 - 所有输出经 JSX 转义；SQL 参数化
+- 跨站防护：全站无 CSRF Token，写接口依赖 Cookie `SameSite=Lax`（全部写操作为 POST，Lax 下跨站请求不携带 Cookie）——显式记录的设计事实（P8-5），未来引入跨站表单/开放 API 时需补 Token
 - 浏览计数走 KV（`views:{threadId}` 累积，Cron 每 10 分钟落 D1）
 - 热帖榜/版块统计走 KV 缓存（TTL 60s，`cache:hot` / `cache:boards`）
 - 书法体自托管：`assets/fonts/ma-shan-zheng-subset.woff2`（299KB 子集，大陆可达）

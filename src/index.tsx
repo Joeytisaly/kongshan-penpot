@@ -199,8 +199,11 @@ app.post("/logout", (c) => {
   return c.redirect("/");
 });
 
-// 重置身份：旧身份作废（帖子保留），签发新身份
+// 重置身份：签发新身份；旧身份码作废（P8-5 兑现 §2 承诺）——code_hash 改写为不可命中的
+// 占位（行保留供历史楼层归属），旧码从此无法登录。其他设备上的旧 Cookie 不在承诺范围
 app.post("/me/reset", async (c) => {
+  await c.env.DB.prepare("UPDATE identities SET code_hash = 'revoked:' || id WHERE id = ?")
+    .bind(c.get("identity").id).run();
   const { id, code, codeHash, displayNo } = await createIdentity(c.env.AUTH_PEPPER);
   await c.env.DB.prepare(
     "INSERT INTO identities (id, code_hash, display_no, created_at, last_seen_at) VALUES (?, ?, ?, datetime('now'), datetime('now'))",
