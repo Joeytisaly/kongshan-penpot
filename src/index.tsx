@@ -105,7 +105,6 @@ app.get("/t/:id", async (c) => {
   else if (c.req.query("faverr")) actionNotice = { kind: "error", text: "收藏没有成功，再试一次。" };
   else if (c.req.query("reporterr")) actionNotice = { kind: "error", text: "操作有点频繁啦，休息一下再试试。" };
   else if (c.req.query("lim")) actionNotice = { kind: "error", text: "动作有点快啦，歇一歇再互动吧。" };
-  else if (c.req.query("replyerr")) actionNotice = { kind: "error", text: "这句话没有发出去，换个说法再试试。" };
   // 引用预填（P4-4）：按楼层/帖子 id 服务端生成引用快照；传 id 不传文本，不接受用户提供的原文回显
   const quoteId = c.req.query("quote");
   let quotePreview: string | undefined;
@@ -492,10 +491,30 @@ app.post("/t/:id/reply", async (c) => {
   const identity = c.get("identity");
   const body = await c.req.parseBody();
   const threadId = c.req.param("id");
+  const content = String(body.content ?? "");
   const ip = c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for") ?? null;
-  // 风控：每身份 1 分钟 3 条回复
+
+  // 失败原页重渲染（P14-2）：保留已输入内容、引用预览，并显示真实原因——
+  // 此前 redirect 丢字且把「每小时上限」误报成「1 分钟冷却」
+  const failRender = async (replyError: string) => {
+    const detail = await getThreadDetail(c.env.DB, threadId, identity.id);
+    if (!detail) return c.redirect("/");
+    const [favorited, unread] = await Promise.all([
+      isFavorited(c.env.DB, identity.id, threadId), getUnreadCount(c.env.DB, identity.id),
+    ]);
+    let quotePreview: string | undefined;
+    let quoteId: string | undefined;
+    if (body.quote) {
+      const hit = await getQuotePreview(c.env.DB, String(body.quote));
+      if (hit) { quotePreview = quoteSnapshot(hit); quoteId = String(body.quote); }
+    }
+    return c.html(<ThreadPage me={toDisplay(identity)} detail={detail} favorited={favorited}
+      unread={unread} replyError={replyError} replyValue={content} quotePreview={quotePreview} quoteId={quoteId} />);
+  };
+
+  // 风控：每身份 1 分钟 3 条回复 + 每 IP 30 条/小时
   const risk = await riskCheck(c.env.KV, c.env.DB, identity.id, ip, "reply");
-  if (!risk.ok) return c.redirect(`/t/${threadId}?err=1`);
+  if (!risk.ok) return failRender(risk.reason ?? "这句话没有发出去，再试一次。");
   // 引用快照服务端按 id 重新生成（P11-2）：表单 hidden 只携带目标 id，不接受用户提供的原文。
   // P12-5：顺带带出被引用作者 id，供引用通知（排除自引与楼主在 createReply 内判定）
   let quote: string | undefined;
@@ -509,9 +528,9 @@ app.post("/t/:id/reply", async (c) => {
   }
   const result = await createReply(
     c.env.KV, c.env.DB, identity.id, threadId,
-    String(body.content ?? ""), { quote, quotedAuthorId },
+    content, { quote, quotedAuthorId },
   );
-  if (!result.ok) return c.redirect(`/t/${threadId}?replyerr=1`);
+  if (!result.ok) return failRender(result.error);
   await riskRecord(c.env.KV, identity.id, ip, "reply");
   // 回帖后跳到新楼层——楼层不在第 1 页时带 ?page=（P13-3）
   const replyPage = floorToPage(result.floor);

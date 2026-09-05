@@ -9,7 +9,7 @@ import type { ThreadDetail } from "../db/queries";
 const HEART_ICON = `<svg width="15" height="15" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M8 13.8C4.4 11.4 1.8 9.2 1.8 6.4 1.8 4.3 3.4 2.7 5.4 2.7c1 0 2 .5 2.6 1.3.6-.8 1.6-1.3 2.6-1.3 2 0 3.6 1.6 3.6 3.7 0 2.8-2.6 5-6.2 7.4z" fill="#7A8A80"/></svg>`;
 const BUBBLE_ICON = `<svg width="15" height="15" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M3.2 2.6h9.6c.9 0 1.6.7 1.6 1.6v5.6c0 .9-.7 1.6-1.6 1.6H8.4L5 14.4v-3H3.2c-.9 0-1.6-.7-1.6-1.6V4.2c0-.9.7-1.6 1.6-1.6z" fill="#7A8A80"/></svg>`;
 
-export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boolean; onlyOp?: boolean; unread?: number; error?: string; actionNotice?: { kind: "warm" | "error"; text: string }; quotePreview?: string; quoteId?: string }> = ({ me, detail, favorited, onlyOp, unread, error, actionNotice, quotePreview, quoteId }) => (
+export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boolean; onlyOp?: boolean; unread?: number; error?: string; actionNotice?: { kind: "warm" | "error"; text: string }; quotePreview?: string; quoteId?: string; replyError?: string; replyValue?: string }> = ({ me, detail, favorited, onlyOp, unread, error, actionNotice, quotePreview, quoteId, replyError, replyValue }) => (
   <Layout title={detail.title} activeNav={detail.boardName} me={me} unread={unread}>
     <p class="crumb">空山 › {detail.boardName} › {detail.title}</p>
     {error && <div class="notice-error" role="status">{error}</div>}
@@ -98,9 +98,11 @@ export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boo
         <section class="card reply-card" id="reply">
           <h2 class="card-title">快速回复</h2>
           {quotePreview && <div class="quote-block">{quotePreview}</div>}
+          {/* P14-2：回复失败原页重渲染——真实原因 + 保留已输入内容（此前 redirect 丢字且文案张冠李戴） */}
+          {replyError && <div class="notice-error" role="status">{replyError}</div>}
           <form action={`/t/${detail.id}/reply`} method="post">
             {quotePreview && <input type="hidden" name="quote" value={quoteId} />}
-            <textarea class="reply-box" name="content" rows={2} placeholder="说点善意的吧，今晚大家都辛苦了…" aria-label="快速回复"></textarea>
+            <textarea class="reply-box" name="content" rows={2} placeholder="说点善意的吧，今晚大家都辛苦了…" aria-label="快速回复">{replyValue}</textarea>
             <div class="reply-foot">
               <span class="reply-note">回复将以随机身份「洞友 #{me.displayNo}」发出，10 分钟内可删除</span>
               <button type="submit" class="btn reply-btn">匿名回复</button>
