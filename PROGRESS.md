@@ -136,6 +136,15 @@
 
 ---
 
+## P11 接手第四轮：全局审查修复（时间正确性 / 写路径加固 / 查询索引 / 体验 / 口径 / 架构清理 / 运维）
+
+> 来源：2026-09-05 七角色深度审查（安全/数据/前端/产品/架构/DevOps/QA），切片按优先级排定。
+> 纪律：每片过门 = `tsc --noEmit` 零错误 + `npm test` 全绿 + wrangler dev 本地冒烟；开工前过 AGENTS.md 依赖地图，联动改动同片完成；涉及 schema 的切片标注「先部署代码后迁移」顺序。
+
+- [x] **P11-1 时间正确性**：楼层「今天 HH:MM」与相对时间 MM-DD 按 Asia/Shanghai 渲染（Workers 时区恒为 UTC，大陆用户看到的时间差 8 小时）；「今日新洞」统计日界（getBoardStats/getCommunityStats）改为上海日界（UTC 串 `datetime('now','+8 hours','start of day','-8 hours')`）；toDisplay.joinDays 改 UTC 解析 + NaN 守卫（原 `new Date("YYYY-MM-DD HH:MM:SS")` 按本机时区解析，Workers 上侥幸正确、本机开发/测试偏差，与 ageMinutes 统一）。联动：format.ts / identity.ts / queries.ts 两处 SQL / format.test.ts 断言改为确定性（Intl 固定时区）/ ARCHITECTURE §6 记录展示时区决策。门：tsc 零错误 + 71 用例 + 本地冒烟（D1 验证上海日界=UTC 前日 16:00；楼层标签显示上海时间 9-04 17:48，旧实现为 09:48） ✓ 2026-09-05
+
+---
+
 ## 变更记录
 
 | 日期 | 内容 |
@@ -163,3 +172,4 @@
 | 2026-09-05 | **P9 收官**（5 切片均过门，待部署）：P9-1 抱抱/收藏/举报改回跳来源页+结果提示条（修复点按钮落裸 JSON 页的现网缺陷，open-redirect 守卫）；P9-2 楼层回复按钮锚点落地 + reply_to 死字段清理；P9-3 只看楼主视图（?op=1）；P9-4 顶栏消息未读红点全站联动（badge 10/10 页面覆盖）；P9-5 站务置顶 toggle。测试经验沉淀：Git Bash MSYS 路径转换改写表单值 → MSYS_NO_PATHCONV=1 + URL 编码；新身份冷却拦自动化测试 → Node UTF-8 脚本内置古诗求解 |
 | 2026-09-05 | **P10 收官**（5 切片均过门，待推送触发 CI 首跑）：P10-1 vitest 单测基建 8 模块 66 用例（TTL 感知 KV stub + fake timers），AGENTS.md 验收门升级「tsc + npm test + 冒烟」三重门；P10-2 GitHub Actions CI（不自动部署，本地干净检出验证等价链）；P10-3 抱抱/收藏动作限流（1 分钟 10 次）+ 抱抱通知 1 小时去重；P10-4 新建 db/mod.ts 收敛站务/举报/身份 SQL，index.tsx 内联 SQL 清零，**回归发现并修复 /me/reset 的 Set-Cookie 拼接遗留 bug（P8-3 漏改）**；P10-5 通知/搜索分页 + flushViews 游标循环。冒烟踩坑记录：本地共享 127.0.0.1 限流桶会跨轮次耗尽（dev 下 cf-connecting-ip 可伪造供测试用，线上由边缘覆写不可伪造）；隐藏帖不进版块列表属预期行为 |
 | 2026-09-05 | **P7+P8 部署上线**（版本 bcf4405f）并推送 GitHub：本地冒烟全绿（本地 0003/0004 迁移 + wrangler dev 十页/豁免路径 0 Cookie 下发/站务签名会话错码拒对码进/详情页 UNION 等级/搜索 ESCAPE/首访 freshCode）后按「先 deploy 后迁移」顺序上线；远程 0003+0004 迁移成功（PRAGMA 确认 identities 死列已删、boards 9 个含 4 新版块）；线上只读复验（单 Cookie 罐全程一次签发）——15 页 200 + 404 兜底、4 新版块首页渲染、favicon data-URI、楼层等级实时计算含洞务组特例、/me 身份码卡片、安全头三件套，全部通过 |
+| 2026-09-05 | 接手第四轮七角色深度审查（安全/数据/前端/产品/架构/DevOps/QA，全量源码+文档通读，tsc+69 用例基线绿），立项 P11 七切片：时间正确性（Workers UTC 致楼层时间差 8 小时+今日日界偏差）、写路径加固（safeReturn 反斜杠 open redirect、quote/reason 无上限、toggleHug 不验目标、cookie 缺 Secure、CSP 缺 frame-ancestors）、查询与索引（getThreads 最后回复全量拉取、0005 identity 索引、flushViews 子请求预算、周抱抱口径漏楼层）、发帖体验（chips 假选中态、版块上下文丢失、失败丢稿、回复静默失败）、口径与文案（热帖榜抱抱标成回复、搜索计数、面包屑写死情感区、我回应的锚点）、架构清理（版块三处事实来源、post_count 反向死列、index 残留 SQL、死 CSS）、运维小项（observability/CI concurrency/危险操作确认/分页窗口化） |

@@ -122,11 +122,14 @@ export async function getThreads(db: D1Database, boardSlug: string, page = 1, pa
 }
 
 export async function getBoardStats(db: D1Database, boardSlug: string) {
+  // 「今日」按上海日界：datetime('now','+8 hours','start of day','-8 hours') = 上海今日 0 点的 UTC 串
+  // （直接 date('now') 是 UTC 日界，北京时间 0–8 点会把昨晚 8 点后算进「今日」——P11-1）
+  const todayFrom = `datetime('now', '+8 hours', 'start of day', '-8 hours')`;
   const r = await db.prepare(`
     SELECT
       (SELECT COUNT(*) FROM threads t JOIN boards b ON b.id=t.board_id WHERE b.slug=? AND t.status='published') AS topics,
       (SELECT COUNT(*) FROM replies r JOIN threads t ON t.id=r.thread_id JOIN boards b ON b.id=t.board_id WHERE b.slug=? AND r.status='published') AS posts,
-      (SELECT COUNT(*) FROM threads t JOIN boards b ON b.id=t.board_id WHERE b.slug=? AND t.status='published' AND t.created_at >= date('now')) AS today
+      (SELECT COUNT(*) FROM threads t JOIN boards b ON b.id=t.board_id WHERE b.slug=? AND t.status='published' AND t.created_at >= ${todayFrom}) AS today
   `).bind(boardSlug, boardSlug, boardSlug).first<{ topics: number; posts: number; today: number }>();
   return {
     topics: formatCount(r?.topics ?? 0),
@@ -454,7 +457,7 @@ export async function getCommunityStats(db: D1Database): Promise<Array<[string, 
     SELECT
       (SELECT COUNT(*) FROM identities i WHERE EXISTS (SELECT 1 FROM threads t WHERE t.identity_id = i.id AND t.status = 'published')
         OR EXISTS (SELECT 1 FROM replies r WHERE r.identity_id = i.id AND r.status = 'published')) AS speakers,
-      (SELECT COUNT(*) FROM threads WHERE status='published' AND created_at >= date('now')) AS today_threads,
+      (SELECT COUNT(*) FROM threads WHERE status='published' AND created_at >= datetime('now', '+8 hours', 'start of day', '-8 hours')) AS today_threads,
       (SELECT COALESCE(SUM(hug_count),0) FROM threads WHERE status='published') AS hugs,
       (SELECT COUNT(*) FROM threads WHERE status='published') AS topics
   `).first<{ speakers: number; today_threads: number; hugs: number; topics: number }>();

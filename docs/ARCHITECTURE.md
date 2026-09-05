@@ -157,6 +157,7 @@ CREATE INDEX idx_fav_owner ON favorites(identity_id, created_at DESC);
 - 所有输出经 JSX 转义；SQL 参数化
 - 跨站防护：全站无 CSRF Token，写接口依赖 Cookie `SameSite=Lax`（全部写操作为 POST，Lax 下跨站请求不携带 Cookie）——显式记录的设计事实（P8-5），未来引入跨站表单/开放 API 时需补 Token
 - 浏览计数走 KV（`views:{threadId}` 累积，Cron 每 10 分钟落 D1）
+- **展示时区**：D1 存 UTC，页面「今天 HH:MM / MM-DD」一律按 `Asia/Shanghai` 渲染（Workers 时区恒为 UTC，直接取本机会差 8 小时）；「今日新洞」等日界统计以上海日界为准（`datetime('now','+8 hours','start of day','-8 hours')`）（P11-1）
 - 热帖榜/版块统计走 KV 缓存（TTL 60s，`cache:hot` / `cache:boards`）
 - 书法体自托管：`assets/fonts/ma-shan-zheng-subset.woff2`（299KB 子集，大陆可达）
 

@@ -71,9 +71,13 @@ export function identityAgeMinutes(row: Pick<IdentityRow, "created_at">): number
 
 /** DB 行 → 页面展示契约（UI 只依赖 types.ts 的 Identity，数据层形态在此转换） */
 export function toDisplay(row: IdentityRow) {
+  // created_at 是 SQLite UTC 串：显式按 UTC 解析（与 ageMinutes 同构）。直接
+  // new Date("YYYY-MM-DD HH:MM:SS") 按机器时区解析——Workers(UTC) 上侥幸正确，
+  // 本机开发/测试（UTC+8）会偏差（P11-1）；解析失败保守按 1 天
+  const created = new Date(row.created_at.replace(" ", "T") + "Z").getTime();
   return {
     displayNo: String(row.display_no).padStart(4, "0"),
-    joinDays: Math.max(1, Math.floor((Date.now() - new Date(row.created_at).getTime()) / 86_400_000)),
+    joinDays: Number.isNaN(created) ? 1 : Math.max(1, Math.floor((Date.now() - created) / 86_400_000)),
     totalPosts: row.post_count,
   };
 }

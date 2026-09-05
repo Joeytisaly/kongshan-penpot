@@ -1,6 +1,27 @@
 // 展示格式化工具 —— 数据层与 UI 契约之间的桥（页面只消费格式化后的展示值）
 // 依赖地图：被 src/db/queries.ts 使用；修改需回归全部页面
 
+/** 展示时区：产品面向中国大陆，D1 存 UTC。Workers 时区恒为 UTC，直接用
+ *  getHours()/本地日期比较会让大陆用户看到差 8 小时的时间——一切「今天/日期」
+ *  展示统一按 Asia/Shanghai 渲染（P11-1） */
+const TZ = "Asia/Shanghai";
+
+/** 毫秒 → 上海时区的日期时间部件（Intl 显式 timeZone，机器时区无关、测试可确定） */
+function tzParts(ms: number): { ymd: string; md: string; hm: string } {
+  const map: Record<string, string> = {};
+  for (const p of new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(new Date(ms))) {
+    if (p.type !== "literal") map[p.type] = p.value;
+  }
+  return {
+    ymd: `${map.year}-${map.month}-${map.day}`,
+    md: `${Number(map.month)}-${map.day}`,
+    hm: `${map.hour}:${map.minute}`,
+  };
+}
+
 /** 数字展示：>=1万 用 "x.x万"，其余千分位 */
 export function formatCount(n: number): string {
   if (n >= 10_000) {
@@ -10,7 +31,8 @@ export function formatCount(n: number): string {
   return n.toLocaleString("en-US");
 }
 
-/** 相对时间：刚刚 / N 分钟前 / N 小时前 / N 天前 / MM-DD（D1 存 UTC，按 UTC 解析） */
+/** 相对时间：刚刚 / N 分钟前 / N 小时前 / N 天前 / MM-DD（D1 存 UTC，按 UTC 解析；
+ *  ≥7 天的日期分支按 Asia/Shanghai 渲染——服务器本地时区在 Workers 上是 UTC，P11-1） */
 export function formatRelativeTime(dt: string): string {
   const t = new Date(dt.replace(" ", "T") + "Z").getTime();
   if (Number.isNaN(t)) return "";
@@ -22,17 +44,17 @@ export function formatRelativeTime(dt: string): string {
   if (h < 24) return `${h} 小时前`;
   const d = Math.floor(h / 24);
   if (d < 7) return `${d} 天前`;
-  const dt2 = new Date(t);
-  return `${dt2.getMonth() + 1}-${String(dt2.getDate()).padStart(2, "0")}`;
+  return tzParts(t).md;
 }
 
-/** 楼层时间：今天 HH:MM / MM-DD HH:MM */
+/** 楼层时间：今天 HH:MM / MM-DD HH:MM。
+ *  「今天」以上海日界判定（P11-1）：UTC 同日 ≠ 上海同日（北京时间 0–8 点间二者不同） */
 export function formatDateTime(dt: string): string {
   const t = new Date(dt.replace(" ", "T") + "Z");
   if (Number.isNaN(t.getTime())) return "";
-  const hm = `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
-  const now = new Date();
-  return t.toDateString() === now.toDateString() ? `今天 ${hm}` : `${t.getMonth() + 1}-${String(t.getDate()).padStart(2, "0")} ${hm}`;
+  const a = tzParts(t.getTime());
+  const b = tzParts(Date.now());
+  return a.ymd === b.ymd ? `今天 ${a.hm}` : `${a.md} ${a.hm}`;
 }
 
 /** 年龄（分钟）：SQLite datetime 格式按 UTC 解析。

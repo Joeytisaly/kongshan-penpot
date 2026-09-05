@@ -27,10 +27,13 @@ describe("formatRelativeTime（UTC 解析）", () => {
     expect(formatRelativeTime(sqliteNow(2 * 3_600_000))).toBe("2 小时前");
     expect(formatRelativeTime(sqliteNow(3 * 86_400_000))).toBe("3 天前");
   });
-  it("≥7 天显示 MM-DD（按本地日期）", () => {
+  it("≥7 天显示 MM-DD（Asia/Shanghai 渲染，P11-1）", () => {
     const ts = Date.now() - 20 * 86_400_000;
-    const d = new Date(ts);
-    const expected = `${d.getMonth() + 1}-${String(d.getDate()).padStart(2, "0")}`;
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Shanghai", month: "2-digit", day: "2-digit" })
+        .formatToParts(new Date(ts)).filter((x) => x.type !== "literal").map((x) => [x.type, x.value]),
+    );
+    const expected = `${Number(parts.month)}-${Number(parts.day)}`;
     expect(formatRelativeTime(new Date(ts).toISOString().slice(0, 19).replace("T", " "))).toBe(expected);
   });
   it("无法解析返回空串", () => {
@@ -38,17 +41,26 @@ describe("formatRelativeTime（UTC 解析）", () => {
   });
 });
 
-describe("formatDateTime", () => {
-  it("今天 → 「今天 HH:MM」", () => {
+describe("formatDateTime（P11-1：Asia/Shanghai 渲染，机器时区无关）", () => {
+  it("上海同日 → 「今天 HH:MM」", () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-09-05T15:00:00Z"));
-    // 14:30Z 与 15:00Z 在任何时区都同属本地 09-05（±14h 内），断言与时区无关
-    expect(formatDateTime("2026-09-05 14:30:00")).toMatch(/^今天 \d{2}:\d{2}$/);
+    vi.setSystemTime(new Date("2026-09-05T15:00:00Z")); // 上海 09-05 23:00
+    expect(formatDateTime("2026-09-05 14:30:00")).toBe("今天 22:30"); // UTC 14:30 = 上海 22:30
   });
-  it("非今天 → 「MM-DD HH:MM」（日补零）", () => {
+  it("非今天 → 「MM-DD HH:MM」", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-05T15:00:00Z"));
-    expect(formatDateTime("2026-09-04 10:00:00")).toMatch(/^9-04 \d{2}:\d{2}$/);
+    expect(formatDateTime("2026-09-04 10:00:00")).toBe("9-04 18:00"); // UTC 10:00 = 上海 18:00
+  });
+  it("UTC 16:00（上海 0 点）后即属「今天」——UTC 日界 ≠ 上海日界", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-05T16:30:00Z")); // 上海 09-06 00:30
+    expect(formatDateTime("2026-09-05 17:00:00")).toBe("今天 01:00"); // 上海 09-06 01:00
+  });
+  it("UTC 同日但上海已跨日 → 显示次日日期（旧实现误判「今天」）", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-05T15:00:00Z")); // 上海 09-05 23:00
+    expect(formatDateTime("2026-09-05 17:30:00")).toBe("9-06 01:30"); // 上海 09-06 01:30
   });
   it("无法解析返回空串", () => {
     expect(formatDateTime("garbage")).toBe("");
