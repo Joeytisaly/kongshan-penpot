@@ -315,7 +315,7 @@ app.post("/report", async (c) => {
   const targetType = body.type === "reply" ? "reply" : "thread";
   const targetId = String(body.target ?? "");
   if (!targetId) return c.redirect(back);
-  await insertReport(c.env.DB, targetType, targetId, String(body.reason ?? "").trim().slice(0, 100));
+  await insertReport(c.env.KV, c.env.DB, targetType, targetId, String(body.reason ?? "").trim().slice(0, 100));
   return c.redirect(withQuery(back, "reported=1"));
 });
 
@@ -327,10 +327,10 @@ app.post("/delete", async (c) => {
   const target = String(body.target ?? "");
   if (!target) return c.redirect("/");
   if (body.type === "reply") {
-    const r = await deleteOwnReply(c.env.DB, identity.id, target);
+    const r = await deleteOwnReply(c.env.KV, c.env.DB, identity.id, target);
     return c.redirect(r.ok ? `/t/${r.threadId}` : "/");
   }
-  await deleteOwnThread(c.env.DB, identity.id, target);
+  await deleteOwnThread(c.env.KV, c.env.DB, identity.id, target);
   return c.redirect("/");
 });
 
@@ -364,7 +364,7 @@ app.post("/mod/login", async (c) => {
 app.post("/mod/approve", async (c) => {
   const body = await c.req.parseBody();
   if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
-  await approveThread(c.env.DB, String(body.id ?? ""));
+  await approveThread(c.env.KV, c.env.DB, String(body.id ?? ""));
   return c.redirect("/mod");
 });
 // 站务处置：隐藏（可逆暂隐）/ 恢复 / 删除（终态）；处置后自动关闭该目标全部未决举报（P10-4：SQL 在 db/mod.ts）
@@ -372,7 +372,7 @@ app.post("/mod/hide", async (c) => {
   if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
   const body = await c.req.parseBody();
   const type = String(body.type) === "reply" ? "reply" : "thread";
-  await hideTarget(c.env.DB, type, String(body.id ?? ""));
+  await hideTarget(c.env.KV, c.env.DB, type, String(body.id ?? ""));
   return c.redirect("/mod");
 });
 
@@ -380,7 +380,7 @@ app.post("/mod/restore", async (c) => {
   if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
   const body = await c.req.parseBody();
   const type = String(body.type) === "reply" ? "reply" : "thread";
-  await restoreTarget(c.env.DB, type, String(body.id ?? ""));
+  await restoreTarget(c.env.KV, c.env.DB, type, String(body.id ?? ""));
   return c.redirect("/mod");
 });
 
@@ -420,14 +420,14 @@ app.post("/mod/delete", async (c) => {
   const body = await c.req.parseBody();
   if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
   const type = String(body.type) === "reply" ? "reply" : "thread";
-  await deleteTarget(c.env.DB, type, String(body.id ?? ""));
+  await deleteTarget(c.env.KV, c.env.DB, type, String(body.id ?? ""));
   return c.redirect("/mod");
 });
 // 加精 toggle（P4-4：精华区的运营入口，举报队列帖子条目触发）
 app.post("/mod/essence", async (c) => {
   if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
   const body = await c.req.parseBody();
-  await toggleEssence(c.env.DB, String(body.id ?? ""));
+  await toggleEssence(c.env.KV, c.env.DB, String(body.id ?? ""));
   return c.redirect("/mod");
 });
 
@@ -435,14 +435,14 @@ app.post("/mod/essence", async (c) => {
 app.post("/mod/pin", async (c) => {
   if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
   const body = await c.req.parseBody();
-  await togglePin(c.env.DB, String(body.id ?? ""));
+  await togglePin(c.env.KV, c.env.DB, String(body.id ?? ""));
   return c.redirect("/mod");
 });
 
 app.post("/mod/report-done", async (c) => {
   const body = await c.req.parseBody();
   if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
-  await resolveReport(c.env.DB, String(body.id ?? ""));
+  await resolveReport(c.env.KV, c.env.DB, String(body.id ?? ""));
   return c.redirect("/mod");
 });
 
@@ -471,7 +471,7 @@ app.post("/new", async (c) => {
       return rerender({ captcha: fresh, error: "古诗没答对哦。再试一次，答案就在题目里。" });
     }
   }
-  const result = await createThread(c.env.DB, identity.id, {
+  const result = await createThread(c.env.KV, c.env.DB, identity.id, {
     boardSlug: values.board, title: values.title, content: values.content,
   });
   if (!result.ok) return rerender({ error: result.error });

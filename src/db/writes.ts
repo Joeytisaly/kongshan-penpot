@@ -2,6 +2,7 @@
 // 依赖地图：writes.ts ↔ index.tsx（POST 路由）+ 表单页面；改动需跑通三链路实测（AGENTS.md §2）
 
 import { displayAuthor, ageMinutes } from "../lib/format";
+import { bustHomeAggregates } from "../lib/cache";
 import { hugNotifyOnce, notifyRateCap } from "../lib/risk";
 
 /** 当前 UTC 时间，与 D1 datetime('now') 同构（SQLite 格式）。
@@ -49,6 +50,7 @@ async function notify(
 
 /** 创建帖子：校验版块与长度 → 审核判定（block/pending）→ 插入 → 更新身份发言数 → 返回新帖 id */
 export async function createThread(
+  kv: KVNamespace,
   db: D1Database,
   identityId: string,
   input: { boardSlug: string; title: string; content: string },
@@ -64,6 +66,8 @@ export async function createThread(
   const now = sqliteNow();
   const inserted = await insertThread(db, id, board.id, identityId, title, content, now);
   if (!inserted.ok) return inserted;
+  // P14-3：发帖后失效首页聚合缓存
+  await bustHomeAggregates(kv);
   // P11-6：post_count 死列已随 0007 移除（只写不读）——发言数由真实表实时计算（P7-2），
   // 这里只维护最近活跃时间
   await db.prepare("UPDATE identities SET last_seen_at = datetime('now') WHERE id = ?").bind(identityId).run();
@@ -106,6 +110,8 @@ export async function createReply(
   if (res.some((r) => !r.success)) return { ok: false, error: "回应没有发出去，再试一次。" };
   const floorRow = await db.prepare("SELECT floor FROM replies WHERE id = ?").bind(id).first<{ floor: number }>();
   const floor = floorRow?.floor ?? 2;
+  // P14-3：回复后失效首页聚合缓存（版块「最后回复」/帖子数）
+  await bustHomeAggregates(kv);
 
   // 通知：楼主收到回复（自回不通知）；被引用楼层作者收到引用通知（P12-5，
   // 排除自引与楼主——楼主已由回复通知覆盖，防双重通知）。两者都过收件箱速率上限。
@@ -164,6 +170,8 @@ export async function toggleHug(
     db.prepare(counter).bind(targetId),
   ]);
   if (res.some((r) => !r.success)) return { ok: false, error: "抱抱没有送到，再试一次。" };
+  // P14-3：抱抱改变热帖榜排序，失效首页聚合缓存
+  await bustHomeAggregates(kv);
 
   const row = await db.prepare(
     targetType === "thread"
@@ -290,6 +298,7 @@ const DELETE_WINDOW_MIN = 10;
 
 /** 删自己的帖子：软删 status='deleted'（与站务删除同语义），整楼随之不可见；楼层与回复数据保留 DB 可由洞务恢复 */
 export async function deleteOwnThread(
+  kv: KVNamespace,
   db: D1Database,
   identityId: string,
   threadId: string,
@@ -303,11 +312,14 @@ export async function deleteOwnThread(
   }
   const res = await db.prepare("UPDATE threads SET status='deleted' WHERE id = ?").bind(threadId).run();
   if (!res.success) return { ok: false, error: "没有收回来，再试一次。" };
+  // P14-3：删帖影响首页版块聚合（主题数）
+  await bustHomeAggregates(kv);
   return { ok: true };
 }
 
 /** 删自己的楼层：软删 + 帖子回复数-1（MAX 防负数）；楼层号不回收（BBS 惯例） */
 export async function deleteOwnReply(
+  kv: KVNamespace,
   db: D1Database,
   identityId: string,
   replyId: string,
@@ -326,5 +338,7 @@ export async function deleteOwnReply(
     db.prepare("UPDATE threads SET reply_count = MAX(reply_count - 1, 0) WHERE id = ?").bind(r.thread_id),
   ]);
   if (res.some((x) => !x.success)) return { ok: false, error: "没有收回来，再试一次。" };
+  // P14-3：删楼影响首页版块聚合（帖子数/最后回复）
+  await bustHomeAggregates(kv);
   return { ok: true, threadId: r.thread_id };
 }

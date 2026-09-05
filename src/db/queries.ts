@@ -6,7 +6,7 @@ import type { IdentityRow } from "../lib/identity";
 import { displayAuthor, ageMinutes, formatCount, formatDateTime, formatRelativeTime } from "../lib/format";
 import { levelFromPosts } from "../lib/level";
 import { judgeContent } from "../lib/words";
-import { cached } from "../lib/cache";
+import { CACHE_KEY_BOARDS, CACHE_KEY_HOT, cached } from "../lib/cache";
 
 /* ========== 首页 01（热帖榜/版块统计走 KV 缓存 60s） ========== */
 
@@ -17,7 +17,7 @@ export interface BoardRow {
 
 export async function getBoards(kv: KVNamespace, db: D1Database): Promise<Board[]> {
   // v2：Board 契约加了 group（P11-6）——换键避免部署后读到旧形状缓存渲染 undefined
-  return cached(kv, "cache:boards:v2", 60, async () => {
+  return cached(kv, CACHE_KEY_BOARDS, 60, async () => {
     const { results } = await db.prepare(`
       SELECT b.slug, b.name, b.description, b.mood, b.icon_char, b.group_name,
         (SELECT COUNT(*) FROM threads t WHERE t.board_id = b.id AND t.status='published') AS topic_count,
@@ -419,7 +419,7 @@ export async function getOpenReports(db: D1Database) {
 
 export async function getHotThreads(kv: KVNamespace, db: D1Database): Promise<HotItem[]> {
   // v2：HotItem 契约 replies → hugs（P11-5）——换键避免部署后读到旧形状缓存
-  return cached(kv, "cache:hot:v2", 60, async () => {
+  return cached(kv, CACHE_KEY_HOT, 60, async () => {
     const { results } = await db.prepare(`
       SELECT t.id, t.title, b.name AS board_name, b.mood, t.hug_count
       FROM threads t JOIN boards b ON b.id=t.board_id
