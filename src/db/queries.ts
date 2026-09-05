@@ -215,21 +215,27 @@ export async function getThreadDetail(
   if (!t) return null;
 
   // 盖楼分页（P13-3）：每页 20 楼（1 楼主 + 回复），楼层号原值不因翻页改变。
-  // 只看楼主视图只有楼主一层，不翻页
-  const totalFloors = t.reply_count + 1;
-  const totalPages = opts?.onlyOp ? 1 : Math.max(1, Math.ceil(totalFloors / FLOORS_PER_PAGE));
+  // 只看楼主视图只有楼主一层，不翻页。
+  // P14-1：总页数按 MAX(floor) 推导而非 reply_count——楼层号不回收，删除楼层会让
+  // 两者脱钩，新回复（MAX+1）可能落在按 reply_count 算出的「不存在页」上不可见
+  const maxFloor = (await db.prepare(
+    "SELECT MAX(floor) AS m FROM replies WHERE thread_id=? AND status='published'",
+  ).bind(threadId).first<{ m: number | null }>())?.m ?? 1;
+  const totalPages = opts?.onlyOp ? 1 : Math.max(1, Math.ceil(Math.max(maxFloor, 1) / FLOORS_PER_PAGE));
   const page = opts?.onlyOp ? 1 : Math.min(Math.max(1, opts?.page ?? 1), totalPages);
 
-  const replies = opts?.onlyOp ? { results: [] as Array<{ id: string; floor: number; identity_id: string; content: string; quote: string | null; hug_count: number; created_at: string; author_display: number }> } : await db.prepare(`
-    SELECT r.id, r.floor, r.identity_id, r.content, r.quote, r.hug_count, r.created_at,
-      i.display_no AS author_display
-    FROM replies r JOIN identities i ON i.id=r.identity_id
-    WHERE r.thread_id=? AND r.status='published' AND r.floor BETWEEN ? AND ?
-    ORDER BY r.floor
-  `).bind(threadId, (page - 1) * FLOORS_PER_PAGE + 1, page * FLOORS_PER_PAGE).all<{
-    id: string; floor: number; identity_id: string; content: string; quote: string | null; hug_count: number;
-    created_at: string; author_display: number;
-  }>();
+  const replies = opts?.onlyOp
+    ? { results: [] as Array<{ id: string; floor: number; identity_id: string; content: string; quote: string | null; hug_count: number; created_at: string; author_display: number }> }
+    : await db.prepare(`
+        SELECT r.id, r.floor, r.identity_id, r.content, r.quote, r.hug_count, r.created_at,
+          i.display_no AS author_display
+        FROM replies r JOIN identities i ON i.id=r.identity_id
+        WHERE r.thread_id=? AND r.status='published' AND r.floor BETWEEN ? AND ?
+        ORDER BY r.floor
+      `).bind(threadId, (page - 1) * FLOORS_PER_PAGE + 1, page * FLOORS_PER_PAGE).all<{
+        id: string; floor: number; identity_id: string; content: string; quote: string | null; hug_count: number;
+        created_at: string; author_display: number;
+      }>();
 
   const levelMap = await getAuthorLevels(db, threadId);
 
