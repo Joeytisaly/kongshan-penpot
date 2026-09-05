@@ -7,8 +7,8 @@ export interface CaptchaQuestion {
   answer: string; // 正确答案（不含标点）
 }
 
-/** 经典诗句题库（上句/下句对） */
-const POEM_BANK: Array<[string, string]> = [
+/** 经典诗句题库（上句/下句对）——导出供测试同步使用 */
+export const POEM_BANK: Array<[string, string]> = [
   ["空山不见人", "但闻人语响"],
   ["床前明月光", "疑是地上霜"],
   ["举头望明月", "低头思故乡"],

@@ -7,6 +7,7 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "db:migrate": "wrangler d1 migrations apply kongshan-db-prod --local"
   },
   "dependencies": {
@@ -15,6 +16,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260903.1",
     "typescript": "^5.7.0",
+    "vitest": "^5.0.0",
     "wrangler": "^4.0.0"
   }
 }

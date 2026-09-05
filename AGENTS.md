@@ -36,7 +36,7 @@
 
 **切片开发与验收门：**
 - 大任务切成可独立验收的片，每片在 PROGRESS.md 里有明确验收标准
-- 每片完成必须过门：`npx tsc --noEmit`（编译零错误）+ `wrangler dev` 冒烟（curl 关键标记或截图）
+- 每片完成必须过门：`npx tsc --noEmit`（编译零错误）+ `npm test`（单测全绿，P10 起纳入）+ `wrangler dev` 冒烟（curl 关键标记或截图）
 - **过门后先更新 PROGRESS.md，再开始下一片**
 - 涉及共享层（layout/tokens/types/queries）的切片过门后，已完成的页面全部重新冒烟一次防回归
 - **不许带病推进**：门没过，不开始下一片
@@ -47,7 +47,8 @@
 - 框架：Hono + `hono/jsx` 服务端渲染；TypeScript 严格模式
 - 数据：D1（关系数据）/ KV（缓存与限流计数）；SQL 一律参数化，禁拼接
 - 静态资源：Workers Static Assets（`assets/` 目录）
-- 常用命令：`npm run dev` / `npm run deploy` / `npm run typecheck` / `npm run db:migrate`
+- 常用命令：`npm run dev` / `npm run deploy` / `npm run typecheck` / `npm test` / `npm run db:migrate`
+- 测试：vitest，测试文件与源码同目录（`src/lib/*.test.ts`）；lib/ 纯函数与 KV 逻辑必须有用例，改动 lib/ 先跑 `npm test`
 - 密钥：一律 `wrangler secret` 或 `.dev.vars`，**永不提交**
 - 契约先行：`src/lib/types.ts` 是页面层与数据层之间的唯一契约；页面只依赖类型不依赖数据来源（P0 曾用 mock，自 P1 起为 D1 查询层，契约保证两者可互换）
 
