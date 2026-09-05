@@ -6,6 +6,9 @@ import type { Identity } from "../lib/types";
 export interface ModItem {
   id: string; title: string; content: string; boardName: string; author: string; time: string;
 }
+export interface ModActionItem {
+  id: string; action: string; targetType: string; targetId: string; time: string;
+}
 export interface ReportItem {
   id: string; targetType: string; targetId: string; reason: string; label: string; time: string;
   status: string; // 目标当前状态 published|hidden|deleted|missing，决定处置按钮组
@@ -21,6 +24,13 @@ const REPORT_STATUS_META: Record<string, { label: string; cls: string }> = {
   missing: { label: "目标不存在", cls: "mood-难过" },
 };
 
+// P13-2：处置流水的动作与目标中文标签
+const ACTION_META: Record<string, string> = {
+  approve: "过审", hide: "隐藏", restore: "恢复", delete: "删除",
+  essence: "加精切换", pin: "置顶切换", resolve: "举报已处理", "auto-hide": "举报达限自动隐藏",
+};
+const TARGET_META: Record<string, string> = { thread: "帖子", reply: "楼层", report: "举报" };
+
 export const ModPage: FC<{
   me: Identity;
   authed: boolean;
@@ -28,9 +38,10 @@ export const ModPage: FC<{
   pendingTotal: number;
   reports: ReportItem[];
   reportsTotal: number;
+  actions: ModActionItem[];
   unread?: number;
   error?: string;
-}> = ({ me, authed, pending, pendingTotal, reports, reportsTotal, unread, error }) => (
+}> = ({ me, authed, pending, pendingTotal, reports, reportsTotal, actions, unread, error }) => (
   <Layout title="站务" activeNav="站务" me={me} unread={unread}>
     <p class="crumb">空山 › 站务</p>
     {!authed ? (
@@ -149,7 +160,26 @@ export const ModPage: FC<{
             <p class="mine-empty">还有 {reportsTotal - reports.length} 条未显示（最多展示 50 条）。</p>
           )}
         </section>
-        </div>
+      </div>
+
+      {/* P13-2：处置流水——共享口令下至少有「何时处置了什么」的痕迹 */}
+      <section class="card list-card">
+        <header class="list-head">
+          <h2 class="card-title">处置日志（最近 {actions.length} 条）</h2>
+        </header>
+        {actions.length === 0 ? (
+          <p class="mine-empty">还没有处置记录。</p>
+        ) : (
+          actions.map((a) => (
+            <div class="mod-row" key={a.id}>
+              <div class="mod-main">
+                <p class="mod-title">{ACTION_META[a.action] ?? a.action} <span class="mood-难过">{TARGET_META[a.targetType] ?? a.targetType}</span></p>
+                <p class="mod-meta">{a.targetId.slice(0, 8)}… · {a.time}</p>
+              </div>
+            </div>
+          ))
+        )}
+      </section>
       </div>
     )}
   </Layout>

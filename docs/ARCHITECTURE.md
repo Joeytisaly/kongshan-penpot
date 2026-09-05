@@ -124,6 +124,15 @@ CREATE TABLE reports (
   created_at TEXT DEFAULT (datetime('now'))
 );
 
+-- 0008 追加（P13-2）：站务处置流水（无外键审计表）
+CREATE TABLE mod_actions (
+  id TEXT PRIMARY KEY,
+  action TEXT NOT NULL,        -- approve|hide|restore|delete|essence|pin|resolve|auto-hide
+  target_type TEXT NOT NULL,   -- thread|reply|report
+  target_id TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
 -- 0002 追加：收藏
 CREATE TABLE favorites (
   id TEXT PRIMARY KEY,
@@ -195,8 +204,9 @@ npx wrangler d1 export kongshan-db-prod --remote --output=backup-$(date +%F).sql
 - **帖子不可编辑**：编辑会破坏「匿名发言的时间胶囊」语义（匿名社区的编辑历史不可见 =
   可抵赖性下降），且 no-JS 下需要完整的二次编辑动线与「已编辑」标记。现状：10 分钟内删除
   重发，超窗不可删改。触发条件：用户反馈高频或洞务处置需要。
-- **站务无处置历史 / 审计**：共享 MOD_PASS 模式下无个人身份可问责；处置历史需要新表 +
-  队列之外的查询页。触发条件：洞务组 ≥2 人或出现处置争议。
+- **站务处置历史**：处置流水已随 0008 记录（/mod 页尾可查「何时处置了什么」，P13-2）；共享
+  MOD_PASS 模式下仍无个人身份——**按人问责需引入洞务账号体系**。触发条件：洞务组 ≥2 人或
+  出现处置争议。
 - **抱抱 / 浏览计数可被脚本灌大**：按身份去重，但身份懒签发零成本；IP 级限流（抱抱已有
   10 次/分钟）可抬高成本但无法根治（IP 池）。热帖榜与「累计抱抱」按**可被操纵的装饰性
   数字**对待，官方不依据其做任何权益分配。

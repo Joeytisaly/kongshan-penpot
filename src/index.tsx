@@ -21,7 +21,7 @@ import {
   getThreads, getWeekStats, isFavorited, searchThreads,
 } from "./db/queries";
 import {
-  approveThread, deleteTarget, hideTarget, insertReport, readAllNotifications,
+  approveThread, deleteTarget, getRecentModActions, hideTarget, insertReport, readAllNotifications,
   resolveReport, restoreTarget, toggleEssence, togglePin,
 } from "./db/mod";
 import { insertIdentity, revokeIdentityCode } from "./db/writes";
@@ -327,14 +327,15 @@ app.post("/delete", async (c) => {
 
 // 站务：MOD_PASS 密码登录（P8-1：限频 + 签名会话令牌，原明文 cookie 方案退役）+ 待审/举报队列
 app.get("/mod", async (c) => {
-  const [pendingQ, reportsQ, unread] = await Promise.all([
-    getPendingThreads(c.env.DB), getOpenReports(c.env.DB),
+  const [pendingQ, reportsQ, actions, unread] = await Promise.all([
+    getPendingThreads(c.env.DB), getOpenReports(c.env.DB), getRecentModActions(c.env.DB),
     getUnreadCount(c.env.DB, c.get("identity").id),
   ]);
   const authed = await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS);
   return c.html(<ModPage me={toDisplay(c.get("identity"))} authed={authed}
     pending={pendingQ.items} pendingTotal={pendingQ.total}
     reports={reportsQ.items} reportsTotal={reportsQ.total}
+    actions={actions}
     unread={unread} error={c.req.query("err") ? "密码不对哦。" : undefined} />);
 });
 app.post("/mod/login", async (c) => {
