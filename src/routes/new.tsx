@@ -16,8 +16,8 @@ export const NewThreadPage: FC<{ me: Identity; boards: Board[]; unread?: number;
         <h1 class="compose-title">发一个新洞</h1>
         <p class="compose-sub">此刻匿名，世界不会知道是你。</p>
 
-        {error && <p class="login-error">{error}</p>}
-        {notice && <p class="login-hint">{notice}</p>}
+        {error && <p class="login-error" role="status">{error}</p>}
+        {notice && <p class="login-hint" role="status">{notice}</p>}
 
         <form action="/new" method="post">
           <p class="compose-label">选择版块</p>
@@ -30,23 +30,23 @@ export const NewThreadPage: FC<{ me: Identity; boards: Board[]; unread?: number;
             ))}
           </div>
 
-          <p class="compose-label">标题</p>
-          <input class="compose-input" type="text" name="title" maxlength={40} value={values?.title}
+          <label class="compose-label" for="compose-title">标题</label>
+          <input class="compose-input" type="text" name="title" id="compose-title" maxlength={40} value={values?.title}
             placeholder="给心事起个标题，20 字以内" />
 
-          <p class="compose-label">正文</p>
+          <label class="compose-label" for="compose-content">正文</label>
           <div class="compose-textarea">
-            <textarea name="content" maxlength={500} rows={5}
+            <textarea name="content" id="compose-content" maxlength={500} rows={5}
               placeholder="今晚，有什么想说的话？写下来吧，树洞会替你保守秘密。">{values?.content}</textarea>
-            <span class="compose-count">0 / 500</span>
+            <span class="compose-count">最多 500 字</span>
           </div>
 
           {captcha && (
             <div class="captcha-box">
               <input type="hidden" name="captcha_id" value={captcha.id} />
-              <p class="compose-label">先答一道古诗题（验证是真人洞友）</p>
+              <label class="compose-label" for="captcha-answer">先答一道古诗题（验证是真人洞友）</label>
               <p class="captcha-prompt">{captcha.prompt}</p>
-              <input class="compose-input captcha-input" type="text" name="captcha_answer"
+              <input class="compose-input captcha-input" type="text" name="captcha_answer" id="captcha-answer"
                 placeholder="填写＿＿＿＿处的诗句" maxlength={10} autocomplete="off" />
             </div>
           )}

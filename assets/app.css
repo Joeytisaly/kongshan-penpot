@@ -490,4 +490,11 @@ label.board-chip:has(input:checked) { background: var(--primary); border-color: 
   .mod-actions { flex-wrap: wrap; }
   .reply-foot { flex-direction: column; align-items: flex-start; gap: 10px; }
   .fav-form { display: block; }
+
+  /* P12-4：iOS Safari 对 font-size<16px 的输入框聚焦时强制放大整页——
+     移动断点下输入控件提到 16px（桌面 >560px 画板还原不受影响） */
+  .search-input, .compose-input, .compose-textarea textarea, .reply-box,
+  .captcha-input, .login-input { font-size: 16px; }
+  /* 触控目标：楼层操作加纵向命中区（≥40px 视觉行高） */
+  .floor-action { padding: 6px 0; }
 }

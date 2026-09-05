@@ -37,10 +37,10 @@ export const ModPage: FC<{
       <section class="card compose-card" style="max-width:480px;margin:40px auto">
         <h1 class="compose-title">洞务组入口</h1>
         <p class="compose-sub">此页面仅限洞务组使用。温柔待人，也请温柔待己。</p>
-        {error && <p class="login-error">{error}</p>}
+        {error && <p class="login-error" role="status">{error}</p>}
         <form action="/mod/login" method="post">
-          <p class="compose-label">口令</p>
-          <input class="compose-input login-input" type="password" name="pass" placeholder="••••••••" />
+          <label class="compose-label" for="mod-pass">口令</label>
+          <input class="compose-input login-input" type="password" name="pass" id="mod-pass" placeholder="••••••••" />
           <div class="compose-actions">
             <a class="btn btn-ghost" href="/">回首页</a>
             <button type="submit" class="btn">进入</button>

@@ -11,8 +11,8 @@ const BUBBLE_ICON = `<svg width="15" height="15" viewBox="0 0 16 16" xmlns="http
 export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boolean; onlyOp?: boolean; unread?: number; error?: string; actionNotice?: { kind: "warm" | "error"; text: string }; quotePreview?: string; quoteId?: string }> = ({ me, detail, favorited, onlyOp, unread, error, actionNotice, quotePreview, quoteId }) => (
   <Layout title={detail.title} activeNav={detail.boardName} me={me} unread={unread}>
     <p class="crumb">空山 › {detail.boardName} › {detail.title}</p>
-    {error && <div class="notice-error">{error}</div>}
-    {actionNotice && <div class={actionNotice.kind === "warm" ? "notice-warm" : "notice-error"}><span>{actionNotice.text}</span></div>}
+    {error && <div class="notice-error" role="status">{error}</div>}
+    {actionNotice && <div class={actionNotice.kind === "warm" ? "notice-warm" : "notice-error"} role="status"><span>{actionNotice.text}</span></div>}
     {detail.selfHarm && (
       <div class="notice-warm">
         <span>如果你正在经历特别难的时刻，请记得：心理援助热线 <b>12356</b> 一直在，树洞也一直在。</span>
@@ -94,7 +94,7 @@ export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boo
           {quotePreview && <div class="quote-block">{quotePreview}</div>}
           <form action={`/t/${detail.id}/reply`} method="post">
             {quotePreview && <input type="hidden" name="quote" value={quoteId} />}
-            <textarea class="reply-box" name="content" rows={2} placeholder="说点善意的吧，今晚大家都辛苦了…"></textarea>
+            <textarea class="reply-box" name="content" rows={2} placeholder="说点善意的吧，今晚大家都辛苦了…" aria-label="快速回复"></textarea>
             <div class="reply-foot">
               <span class="reply-note">回复将以随机身份「洞友 #{me.displayNo}」发出，10 分钟内可删除</span>
               <button type="submit" class="btn reply-btn">匿名回复</button>

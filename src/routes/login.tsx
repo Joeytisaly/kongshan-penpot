@@ -13,15 +13,16 @@ export const LoginPage: FC<{ me: Identity; unread?: number; error?: string; hint
           换了一台设备，或不小心清了浏览记录？输入身份码，树洞就能认出你。
         </p>
 
-        {error && <p class="login-error">{error}</p>}
-        {hint && <p class="login-hint">{hint}</p>}
+        {error && <p class="login-error" role="status">{error}</p>}
+        {hint && <p class="login-hint" role="status">{hint}</p>}
 
         <form action="/login" method="post">
-          <p class="compose-label">身份码</p>
+          <label class="compose-label" for="login-code">身份码</label>
           <input
             class="compose-input login-input"
             type="text"
             name="code"
+            id="login-code"
             placeholder="KS-XXXX-XXXX-XXXX-XXXX"
             autocomplete="off"
             spellcheck={false}
