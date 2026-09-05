@@ -32,12 +32,12 @@ export const identityMiddleware: MiddlewareHandler<Ctx> = async (c, next) => {
   // 懒签发：首次访问即成为匿名洞友
   const { id, code, codeHash, displayNo } = await createIdentity(c.env.AUTH_PEPPER);
   await c.env.DB.prepare(
-    "INSERT INTO identities (id, code_hash, display_no, level, created_at, last_seen_at) VALUES (?, ?, ?, '一叶', datetime('now'), datetime('now'))",
+    "INSERT INTO identities (id, code_hash, display_no, created_at, last_seen_at) VALUES (?, ?, ?, datetime('now'), datetime('now'))",
   ).bind(id, codeHash, displayNo).run();
 
   c.set("identity", {
-    id, code_hash: codeHash, display_no: displayNo, level: "一叶",
-    post_count: 0, hug_received: 0,
+    id, code_hash: codeHash, display_no: displayNo,
+    post_count: 0,
     // 与 D1 datetime('now') 同构（UTC、空格分隔）：ageMin/toDisplay 等消费方按同一格式解析
     created_at: new Date().toISOString().slice(0, 19).replace("T", " "),
     last_seen_at: null,

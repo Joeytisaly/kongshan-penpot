@@ -201,7 +201,7 @@ app.post("/logout", (c) => {
 app.post("/me/reset", async (c) => {
   const { id, code, codeHash, displayNo } = await createIdentity(c.env.AUTH_PEPPER);
   await c.env.DB.prepare(
-    "INSERT INTO identities (id, code_hash, display_no, level, created_at, last_seen_at) VALUES (?, ?, ?, '一叶', datetime('now'), datetime('now'))",
+    "INSERT INTO identities (id, code_hash, display_no, created_at, last_seen_at) VALUES (?, ?, ?, datetime('now'), datetime('now'))",
   ).bind(id, codeHash, displayNo).run();
   c.header("Set-Cookie", [
     `${COOKIE_NAME}=${id}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000`,

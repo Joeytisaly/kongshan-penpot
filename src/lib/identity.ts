@@ -6,14 +6,13 @@ import { ageMinutes } from "./format";
 /** 身份码字符集：Crockford Base32 去混淆字符（去掉 0/O/1/I/L） */
 const CODE_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
-/** identities 表行（数据层形态） */
+/** identities 表行（数据层形态）。
+ *  0003 已移除 level / hug_received 死列：等级与「收到的抱抱」一律由真实表实时计算（P7） */
 export interface IdentityRow {
   id: string;
   code_hash: string;
   display_no: number;
-  level: string;
   post_count: number;
-  hug_received: number;
   created_at: string;
   last_seen_at: string | null;
 }
@@ -74,7 +73,6 @@ export function identityAgeMinutes(row: Pick<IdentityRow, "created_at">): number
 export function toDisplay(row: IdentityRow) {
   return {
     displayNo: String(row.display_no).padStart(4, "0"),
-    level: row.level,
     joinDays: Math.max(1, Math.floor((Date.now() - new Date(row.created_at).getTime()) / 86_400_000)),
     totalPosts: row.post_count,
   };

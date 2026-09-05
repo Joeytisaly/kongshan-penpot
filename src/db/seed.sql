@@ -9,18 +9,19 @@ INSERT INTO boards (id, slug, name, description, mood, icon_char, sort) VALUES
   ('board-lingyi',  'lingyi',  '灵异夜话', '胆小的洞友请抱紧自己的抱枕。',     '感悟', '灵', 5);
 
 -- 演示身份（code_hash 前缀 seed- 表示不可登录的演示作者；display_no=0 表示"洞务组"）
-INSERT INTO identities (id, code_hash, display_no, level, post_count, hug_received) VALUES
-  ('id-mod',  'seed-mod',  0,    '洞务', 1, 0),
-  ('id-4821', 'seed-4821', 4821, '一叶', 1, 128),
-  ('id-3302', 'seed-3302', 3302, '三叶', 1, 45),
-  ('id-2077', 'seed-2077', 2077, '两叶', 1, 21),
-  ('id-1956', 'seed-1956', 1956, '一叶', 1, 0),
-  ('id-6109', 'seed-6109', 6109, '两叶', 1, 0),
-  ('id-0413', 'seed-0413', 0413, '两叶', 1, 0),
-  ('id-5104', 'seed-5104', 5104, '一叶', 1, 0),
-  ('id-0417', 'seed-0417', 0417, '一叶', 1, 0),
-  ('id-7712', 'seed-7712', 7712, '三叶', 0, 12),
-  ('id-8829', 'seed-8829', 8829, '一叶', 1, 0);
+-- 等级/抱抱列已随 0003 移除（P7-3）：等级由发言数实时计算，演示身份各 1 帖 → 一叶
+INSERT INTO identities (id, code_hash, display_no, post_count) VALUES
+  ('id-mod',  'seed-mod',  0,    1),
+  ('id-4821', 'seed-4821', 4821, 1),
+  ('id-3302', 'seed-3302', 3302, 1),
+  ('id-2077', 'seed-2077', 2077, 1),
+  ('id-1956', 'seed-1956', 1956, 1),
+  ('id-6109', 'seed-6109', 6109, 1),
+  ('id-0413', 'seed-0413', 0413, 1),
+  ('id-5104', 'seed-5104', 5104, 1),
+  ('id-0417', 'seed-0417', 0417, 1),
+  ('id-7712', 'seed-7712', 7712, 0),
+  ('id-8829', 'seed-8829', 8829, 1);
 
 -- 帖子（10 条，全部在深夜树洞，对应画板 02 列表）
 INSERT INTO threads (id, board_id, identity_id, title, content, views, reply_count, hug_count, pinned, essence, status, created_at, last_reply_at) VALUES

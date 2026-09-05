@@ -11,5 +11,6 @@ UPDATE threads SET
   views       = 120 + (ABS(RANDOM()) % 680)
 WHERE identity_id LIKE 'id-%';
 
--- 演示身份的注水统计清零（真实身份的计数由代码路径 toggleHug/createThread 维护，不受影响）
-UPDATE identities SET post_count = 0, hug_received = 0 WHERE code_hash LIKE 'seed-%';
+-- 演示身份的注水统计清零（真实身份的计数由代码路径 createThread/toggleHug 维护，不受影响；
+-- hug_received 列已随 0003 移除——收到的抱抱改为实时统计，见 P7-1）
+UPDATE identities SET post_count = 0 WHERE code_hash LIKE 'seed-%';

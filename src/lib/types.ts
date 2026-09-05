@@ -59,10 +59,9 @@ export interface Notice {
   unread: boolean;
 }
 
-/** 当前洞友（匿名身份） */
+/** 当前洞友（匿名身份）。等级不在契约内：展示处一律由发言数经 levelFromPosts 实时计算（P7-2） */
 export interface Identity {
   displayNo: string; // 如 "8829"
-  level: string; // 如 "一叶"
   joinDays: number;
   totalPosts: number; // 累计发言（发帖+回应），与树洞等级同口径；首页路由以实时统计注入（P7-2）
 }
