@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
 
+# P11-7：同一分支只保留最新一次运行，取消已被新提交取代的旧运行
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: ubuntu-latest

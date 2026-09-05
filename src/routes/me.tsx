@@ -99,9 +99,8 @@ export const MePage: FC<{
               <p class="code-hint">这是你的身份码，唯一凭证 —— 请抄写保存</p>
               <p class="code-display">{identityCode}</p>
             </div>
-            <form action="/me/reset" method="post">
-              <button type="submit" class="btn btn-ghost">重置身份</button>
-            </form>
+            {/* P11-7：重置不可逆，两步式确认——先去 /me/reset-confirm 确认页 */}
+            <a class="btn btn-ghost" href="/me/reset-confirm">重置身份</a>
           </section>
         )}
 

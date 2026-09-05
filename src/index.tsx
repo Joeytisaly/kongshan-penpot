@@ -16,7 +16,7 @@ import { SearchPage } from "./routes/search";
 import { EssencePage } from "./routes/essence";
 import {
   getBoardBySlug, getBoardHot, getBoardStats, getBoards, getCommunityStats, getEssenceThreads, getHotThreads,
-  getIdentityByCodeHash, getMyFavorites, getMyReplies, getMyStats, getMyThreads, getMyTracks,
+  getIdentityByCodeHash, getModTargetSummary, getMyFavorites, getMyReplies, getMyStats, getMyThreads, getMyTracks,
   getNotices, getQuotePreview, getUnreadCount, getOpenReports, getPendingThreads, getThreadDetail,
   getThreads, getWeekStats, isFavorited, searchThreads,
 } from "./db/queries";
@@ -231,6 +231,30 @@ app.post("/logout", (c) => {
   return c.redirect("/");
 });
 
+// 重置身份确认页（P11-7：no-JS 两步式确认——重置不可逆，旧身份码永久作废）
+app.get("/me/reset-confirm", async (c) => {
+  const identity = c.get("identity");
+  const unread = await getUnreadCount(c.env.DB, identity.id);
+  return c.html(
+    <Layout title="重置身份" me={toDisplay(identity)} unread={unread}>
+      <p class="crumb">空山 › 我的树洞 › 重置身份</p>
+      <section class="card compose-card" style="max-width:480px;margin:40px auto">
+        <h1 class="compose-title">确定要重置身份吗？</h1>
+        <p class="compose-sub">
+          重置后，当前身份码将永久作废，无法再找回这个身份。
+          你发过的心事会留在树洞里，但不再属于你。这个操作无法撤销。
+        </p>
+        <div class="compose-actions">
+          <a class="btn btn-ghost" href="/me">再想想</a>
+          <form action="/me/reset" method="post">
+            <button type="submit" class="btn">确认重置</button>
+          </form>
+        </div>
+      </section>
+    </Layout>,
+  );
+});
+
 // 重置身份：签发新身份；旧身份码作废（P8-5 兑现 §2 承诺）——code_hash 改写为不可命中的
 // 占位（行保留供历史楼层归属），旧码从此无法登录。其他设备上的旧 Cookie 不在承诺范围
 app.post("/me/reset", async (c) => {
@@ -318,6 +342,38 @@ app.post("/mod/restore", async (c) => {
   const type = String(body.type) === "reply" ? "reply" : "thread";
   await restoreTarget(c.env.DB, type, String(body.id ?? ""));
   return c.redirect("/mod");
+});
+
+// 站务删除确认页（P11-7）：删除是终态——确认页展示被删内容摘要，防误删/怒删
+app.get("/mod/delete-confirm", async (c) => {
+  const identity = c.get("identity");
+  const unread = await getUnreadCount(c.env.DB, identity.id);
+  if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
+  const type = c.req.query("type") === "reply" ? "reply" : "thread";
+  const id = c.req.query("id") ?? "";
+  const target = id ? await getModTargetSummary(c.env.DB, type, id) : null;
+  if (!target) return c.redirect("/mod");
+  return c.html(
+    <Layout title="确认删除" me={toDisplay(identity)} unread={unread}>
+      <p class="crumb">空山 › 站务 › 确认删除</p>
+      <section class="card compose-card" style="max-width:560px;margin:40px auto">
+        <h1 class="compose-title">确定要删除吗？</h1>
+        <p class="compose-sub">删除是终态，站务页无法恢复（数据库有 Time Travel 兜底）。请再看一眼内容：</p>
+        <div class="quote-block">
+          <p>「{target.title}」 · {displayAuthor(target.display)} · {target.board_name}</p>
+          <p>{target.content.slice(0, 120)}</p>
+        </div>
+        <div class="compose-actions">
+          <a class="btn btn-ghost" href="/mod">返回队列</a>
+          <form action="/mod/delete" method="post">
+            <input type="hidden" name="type" value={type} />
+            <input type="hidden" name="id" value={id} />
+            <button type="submit" class="btn">确认删除</button>
+          </form>
+        </div>
+      </section>
+    </Layout>,
+  );
 });
 
 app.post("/mod/delete", async (c) => {

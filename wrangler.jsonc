@@ -22,6 +22,10 @@
   ],
   "triggers": {
     "crons": ["*/10 * * * *"]
+  },
+  // P11-7：Workers 可观测性——线上错误率/日志在 dashboard 直接可查（此前排查只靠 curl）
+  "observability": {
+    "enabled": true
   }
   // P2 补充：AUTH_PEPPER 已用 wrangler secret 配置；站务页等
 }

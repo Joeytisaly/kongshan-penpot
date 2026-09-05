@@ -1,6 +1,7 @@
 // 画板 05 消息通知（S12：数据来自 D1 查询层；P2 完善通知生成）
 import type { FC } from "hono/jsx";
 import { Layout } from "../components/layout";
+import { Pagination } from "../components/pagination";
 import type { Identity, Notice } from "../lib/types";
 
 const BUBBLE_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M3.2 2.6h9.6c.9 0 1.6.7 1.6 1.6v5.6c0 .9-.7 1.6-1.6 1.6H8.4L5 14.4v-3H3.2c-.9 0-1.6-.7-1.6-1.6V4.2c0-.9.7-1.6 1.6-1.6z" fill="#2F6B4F"/></svg>`;
@@ -60,16 +61,8 @@ export const NotificationsPage: FC<{ me: Identity; notices: Notice[]; activeType
           })}
         </section>
       )}
-      {totalPages > 1 && (
-        <div class="pagination">
-          <a class="page-btn" href={pageHref(activeType, Math.max(1, page - 1))}>上一页</a>
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-            <a class={p === page ? "page-btn active" : "page-btn"} href={pageHref(activeType, p)} key={p}>{p}</a>
-          ))}
-          <a class="page-btn" href={pageHref(activeType, Math.min(totalPages, page + 1))}>下一页</a>
-          <span class="page-info">共 {totalPages} 页</span>
-        </div>
-      )}
+      <Pagination page={page} totalPages={totalPages} href={(p) => pageHref(activeType, p)}
+        info={`共 ${totalPages} 页`} />
     </div>
   </Layout>
 );

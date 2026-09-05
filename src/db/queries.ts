@@ -325,6 +325,24 @@ export async function getEssenceThreads(db: D1Database, limit = 50): Promise<Thr
   }));
 }
 
+/** 站务删除确认页的目标摘要（P11-7）：帖子（含待审）取标题+正文，楼层取内容——
+ *  终态删除前让洞务看到内容，防误删/怒删 */
+export async function getModTargetSummary(db: D1Database, type: "thread" | "reply", id: string) {
+  if (type === "thread") {
+    return await db.prepare(`
+      SELECT t.title, t.content, b.name AS board_name, i.display_no AS display
+      FROM threads t JOIN boards b ON b.id=t.board_id JOIN identities i ON i.id=t.identity_id
+      WHERE t.id=? AND t.status IN ('published','pending','hidden')
+    `).bind(id).first<{ title: string; content: string; board_name: string; display: number }>();
+  }
+  return await db.prepare(`
+    SELECT t.title, r.content, b.name AS board_name, i.display_no AS display
+    FROM replies r JOIN threads t ON t.id=r.thread_id JOIN boards b ON b.id=t.board_id
+    JOIN identities i ON i.id=r.identity_id
+    WHERE r.id=? AND r.status IN ('published','hidden')
+  `).bind(id).first<{ title: string; content: string; board_name: string; display: number }>();
+}
+
 /* ========== 站务：待审 / 举报队列 ========== */
 
 export async function getPendingThreads(db: D1Database) {

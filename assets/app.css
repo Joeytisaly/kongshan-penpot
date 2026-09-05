@@ -202,6 +202,7 @@ main.container { max-width: 1312px; margin: 0 auto; padding: 0 0 40px; }
 }
 .page-btn:hover { text-decoration: none; border-color: var(--primary); color: var(--primary); }
 .page-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+.page-ellipsis { color: var(--text-2); padding: 0 2px; }
 .page-info { margin-left: auto; font-size: var(--fs-sub); color: var(--text-2); }
 
 /* ===== 画板 03 盖楼详情 ===== */

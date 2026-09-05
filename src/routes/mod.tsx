@@ -66,10 +66,8 @@ export const ModPage: FC<{
                     <input type="hidden" name="id" value={p.id} />
                     <button type="submit" class="btn reply-btn">过审</button>
                   </form>
-                  <form action="/mod/delete" method="post">
-                    <input type="hidden" name="id" value={p.id} />
-                    <button type="submit" class="btn btn-ghost reply-btn">删除</button>
-                  </form>
+                  {/* P11-7：删除终态，两步式确认（确认页展示内容摘要） */}
+                  <a class="btn btn-ghost reply-btn" href={`/mod/delete-confirm?type=thread&id=${p.id}`}>删除</a>
                 </div>
               </div>
             ))
@@ -112,11 +110,7 @@ export const ModPage: FC<{
                       </form>
                     )}
                     {(r.status === "published" || r.status === "hidden") && (
-                      <form action="/mod/delete" method="post">
-                        <input type="hidden" name="type" value={r.targetType} />
-                        <input type="hidden" name="id" value={r.targetId} />
-                        <button type="submit" class="btn btn-ghost reply-btn">删除</button>
-                      </form>
+                      <a class="btn btn-ghost reply-btn" href={`/mod/delete-confirm?type=${r.targetType}&id=${r.targetId}`}>删除</a>
                     )}
                     {r.targetType === "thread" && r.status === "published" && (
                       <form action="/mod/essence" method="post">

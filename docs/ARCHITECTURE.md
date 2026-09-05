@@ -149,11 +149,13 @@ CREATE INDEX idx_fav_owner ON favorites(identity_id, created_at DESC);
 | `/notifications` | GET/POST | 消息通知 / 全部已读 | 05 |
 | `/me` | GET | 我的树洞（含身份码展示） | 06 |
 | `/me/reset` | POST | 重置身份 | 06 |
+| `/me/reset-confirm` | GET | 重置身份确认页（两步式确认，P11-7） | 06 |
 | `/search` | GET | 搜索帖子（标题/正文，published，LIKE 参数化） | — |
 | `/essence` | GET | 精华区（跨版块 essence=1 列表） | — |
 | `/login` | GET/POST | 身份码登录（IP-HMAC 5 次/小时限频） | — |
 | `/captcha` | GET | 古诗验证码（内嵌发帖表单，无独立路由） | — |
 | `/mod` | GET/POST | 站务（MOD_PASS 保护：待审队列 + 举报队列，支持隐藏/恢复/删除/加精处置，处置自动关闭未决举报） | — |
+| `/mod/delete-confirm` | GET | 站务删除确认页（终态删除前展示内容摘要，P11-7） | — |
 
 ## 6. 非功能要求
 

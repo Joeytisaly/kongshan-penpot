@@ -2,6 +2,7 @@
 import type { FC } from "hono/jsx";
 import { Layout } from "../components/layout";
 import { EmptyState } from "../components/empty";
+import { Pagination } from "../components/pagination";
 import type { Board, Identity, Thread } from "../lib/types";
 
 export const BoardPage: FC<{
@@ -78,15 +79,7 @@ export const BoardPage: FC<{
       </aside>
     </div>
 
-    {totalPages > 1 && (
-      <div class="pagination">
-        <a class="page-btn" href={`/b/${board.slug}?page=${Math.max(1, page - 1)}`}>上一页</a>
-        {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-          <a class={p === page ? "page-btn active" : "page-btn"} href={`/b/${board.slug}?page=${p}`}>{p}</a>
-        ))}
-        <a class="page-btn" href={`/b/${board.slug}?page=${Math.min(totalPages, page + 1)}`}>下一页</a>
-        <span class="page-info">共 {totalPages} 页 · {boardStats.topics} 个主题</span>
-      </div>
-    )}
+    <Pagination page={page} totalPages={totalPages} href={(p) => `/b/${board.slug}?page=${p}`}
+      info={`共 ${totalPages} 页 · ${boardStats.topics} 个主题`} />
   </Layout>
 );
