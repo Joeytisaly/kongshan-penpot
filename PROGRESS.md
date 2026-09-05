@@ -99,8 +99,8 @@
 > 共同根因：identities 表上的冗余列（hug_received / level）无写路径维护，查询层却在读——读到「永远不对的数字」。
 > 修复策略：一律改为真实表实时驱动（延续 P5-1「数字必须可验证」原则），页面契约零改动，死列在 P7-3 统一清理。
 
-- [-] **P7-1 抱抱统计实时化**：`getMyStats.hugs` 由 `identities.hug_received`（从未被写路径维护，真实用户恒为 0）改为 hugs 表按 published 帖/楼作者实时 COUNT——与同函数 posts/replies 的 published 口径一致。消费方（/me 资料卡、首页足迹）走既有契约字段零改动。门：tsc 零错误；用户侧冒烟：收过抱抱的账号 /me「收到的抱抱」> 0
-- [ ] **P7-2 等级与累计发言实时化**：楼层作者等级由 `identities.level`（签发后冻结在一叶）改为发言数（published 帖+回，单次查询覆盖全楼参与作者）经 `levelFromPosts` 实时计算，洞务组（display_no=0）特例「洞务」；首页身份卡「累计发言」改用实时 posts+replies 口径，与旁边等级口径一致（兑现 P5-3 语义）。门：tsc 零错误
+- [x] **P7-1 抱抱统计实时化**：`getMyStats.hugs` 由 `identities.hug_received`（从未被写路径维护，真实用户恒为 0）改为 hugs 表按 published 帖/楼作者实时 COUNT——与同函数 posts/replies 的 published 口径一致。消费方（/me 资料卡、首页足迹）走既有契约字段零改动。门：tsc 零错误 ✓ 2026-09-05（用户侧冒烟待部署后：收过抱抱的账号 /me「收到的抱抱」> 0）
+- [-] **P7-2 等级与累计发言实时化**：楼层作者等级由 `identities.level`（签发后冻结在一叶）改为发言数（published 帖+回，单次查询覆盖全楼参与作者）经 `levelFromPosts` 实时计算，洞务组（display_no=0）特例「洞务」；首页身份卡「累计发言」改用实时 posts+replies 口径，与旁边等级口径一致（兑现 P5-3 语义）。门：tsc 零错误
 - [ ] **P7-3 身份表死列清理**：migration 0003 DROP `identities.level` / `identities.hug_received`（P7-1/2 后零读者；死列即本阶段两 bug 的共同根因）——联动 IdentityRow / toDisplay / 懒签发 INSERT / reset INSERT / seed.sql / normalize-seed.sql / ARCHITECTURE §4。**⚠️ 上线顺序：先部署代码、后应用迁移**（新代码兼容新旧两种 schema，旧代码不兼容新 schema——懒签发 INSERT 带列名会因列消失而失败）。门：tsc 零错误；用户侧：先 deploy 再 `wrangler d1 migrations apply kongshan-db-prod --remote`
 
 ## P8 候选清单（接手审查发现，未排期）
