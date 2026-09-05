@@ -58,6 +58,8 @@ export interface Notice {
   sub: string; // 引用摘要
   time: string;
   unread: boolean;
+  threadId?: string; // 跳转目标帖（P13-1）：payload 携带，旧通知无此字段则不可点击
+  floor?: number; // 楼层号（回复通知）：跳转锚点 /t/:id#floor-N
 }
 
 /** 当前洞友（匿名身份）。等级不在契约内：展示处一律由发言数经 levelFromPosts 实时计算（P7-2） */

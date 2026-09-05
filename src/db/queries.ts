@@ -448,10 +448,11 @@ export async function getNotices(
   `).bind(...bind, pageSize, (page - 1) * pageSize)
     .all<{ id: string; type: string; payload: string; read_at: string | null; created_at: string }>();
   const notices = results.map((n) => {
-    const p = JSON.parse(n.payload) as { main: string; sub?: string };
+    const p = JSON.parse(n.payload) as { main: string; sub?: string; threadId?: string; floor?: number };
     return {
       id: n.id, kind: (n.type === "reply" || n.type === "hug" || n.type === "system" ? n.type : "system") as Notice["kind"],
       main: p.main, sub: p.sub ?? "", time: formatRelativeTime(n.created_at), unread: !n.read_at,
+      threadId: p.threadId, floor: p.floor,
     };
   });
   return { notices, page, totalPages: Math.max(1, Math.ceil(total / pageSize)) };

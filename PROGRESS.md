@@ -202,3 +202,12 @@
 | 2026-09-05 | **P12 收官**（4 切片均过门，待部署）：P12-1 身份动线闭环（顶栏找回身份入口、首帖 ?first=1 身份码引导、/mod/logout 站务退出——含无状态令牌登出边界记录）；P12-2 防刷补口（回复 IP-HMAC 30 条/小时、通知收件箱每分钟 6 条上限，冒烟 30 过 31 拦、楼主 30 回复仅落 6 通知）；P12-3 互动补全（举报 details 折叠+可选理由、自伤横幅行动项、回到顶部、站务队列 LIMIT 50+COUNT）；P12-4 移动与无障碍（iOS 16px 输入字号、触控命中区、label/aria 关联、role=status）+ ARCHITECTURE §8 已知边界七项文档化。测试 83 用例。⚠️ 部署注意：mod_auth 现带 Secure（P11-2）+ /mod/logout 新增；无 schema 变更、无迁移，单 deploy 即可 |
 | 2026-09-05 | **P12 部署上线**（版本 21ea8a23，无迁移）：线上只读回归全绿——14 路径 200+404、顶栏「找回身份」链接（Node UTF-8 核验，bash grep 中文模式假阴性）、/t 详情 details 举报折叠+#top+快速回复 aria+提示条 role=status、/new 表单 label 关联、搜索 aria-label、/mod 登录表单口令 label 且无会话时无退出按钮、Secure Cookie+frame-ancestors 保持、app.css 含 iOS 16px 断点。线上未做任何写操作（回复 IP 限流与通知上限已在本地以伪造 IP 冒烟验证）。仍待用户推送 GitHub 触发 CI 首跑 |
 | 2026-09-05 | **P12-5 部署上线**（版本 4008b0b2，无迁移）：引用楼层通知 + 回复通知动作者存量 bug 修复上线；线上抽查 5 页 200、引用链接/举报折叠/#top 渲染正常。CI 首跑仍待推送 GitHub |
+
+---
+
+## P13 交互闭环与规模化
+
+> 来源：P12 后复查——发现两轮审查漏掉的最大交互断点（通知行不可点击跳转）+ 提前收掉最大规模性缺口（千楼帖全量加载）。
+> 纪律同 P11/P12：每片过门 = tsc 零错误 + npm test 全绿 + wrangler dev 本地冒烟；开工前过依赖地图，联动同片完成。
+
+- [x] **P13-1 通知可跳转闭环**：① notify payload 扩展 threadId/floor（回复通知带楼层号、抱抱通知带帖子 id、楼层抱抱补查 thread_id）；② 契约 Notice 加 threadId?/floor?，getNotices 解析；③ 通知行改为整行 POST 表单按钮（点击 = 标记该条已读 + 303 跳转 /t/:id#floor-N）——用 POST 而非链接（GET 带副作用不符语义、防预取误触），旧 payload 无 threadId 优雅降级为纯文本行；④ 新路由 POST /notifications/open（校验归属，他人通知 id 动不了）。门：tsc 零错误 + 83 用例 + Node 冒烟 5 断言（可点击表单渲染、查看›标记、点击 303 到 /t/:id#floor-2 精确命中、红点清零）。踩坑：hono/jsx 的 `<input …/>` 在 value 后无空格，正则别写 `" \/>"` ✓ 2026-09-05

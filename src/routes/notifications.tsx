@@ -45,8 +45,8 @@ export const NotificationsPage: FC<{ me: Identity; notices: Notice[]; activeType
         <section class="card notice-list">
           {notices.map((n) => {
             const meta = KIND_META[n.kind];
-            return (
-              <div class="notice-row" key={n.id}>
+            const body = (
+              <>
                 {n.unread && <span class="unread-dot" />}
                 <span class="notice-icon" style={`background:${meta.bg}`}>
                   <span dangerouslySetInnerHTML={{ __html: meta.icon }} />
@@ -55,8 +55,19 @@ export const NotificationsPage: FC<{ me: Identity; notices: Notice[]; activeType
                   <p class={n.unread ? "notice-main unread" : "notice-main"}>{n.main}</p>
                   <p class="notice-sub">{n.sub}</p>
                 </div>
+                {n.threadId && <span class="notice-go">查看 ›</span>}
                 <span class="notice-time">{n.time}</span>
-              </div>
+              </>
+            );
+            // P13-1：payload 带 threadId 的通知整行可点——POST 标记该条已读并跳回现场；
+            // 旧通知（无 threadId）保持纯文本行
+            return n.threadId ? (
+              <form action="/notifications/open" method="post" key={n.id}>
+                <input type="hidden" name="id" value={n.id} />
+                <button type="submit" class="notice-row notice-jump">{body}</button>
+              </form>
+            ) : (
+              <div class="notice-row" key={n.id}>{body}</div>
             );
           })}
         </section>

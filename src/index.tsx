@@ -154,6 +154,23 @@ app.post("/notifications/read", async (c) => {
   return c.redirect("/notifications");
 });
 
+// 通知点击跳转（P13-1）：标记该条已读后 303 回现场。校验归属——他人的通知 id 动不了
+app.post("/notifications/open", async (c) => {
+  const identity = c.get("identity");
+  const body = await c.req.parseBody();
+  const id = String(body.id ?? "");
+  if (!id) return c.redirect("/notifications");
+  const row = await c.env.DB.prepare(
+    "SELECT payload FROM notifications WHERE id = ? AND identity_id = ?",
+  ).bind(id, identity.id).first<{ payload: string }>();
+  if (!row) return c.redirect("/notifications");
+  await c.env.DB.prepare(
+    "UPDATE notifications SET read_at = datetime('now') WHERE id = ? AND identity_id = ? AND read_at IS NULL",
+  ).bind(id, identity.id).run();
+  const p = JSON.parse(row.payload) as { threadId?: string; floor?: number };
+  return c.redirect(p.threadId ? `/t/${p.threadId}${p.floor ? `#floor-${p.floor}` : ""}` : "/notifications");
+});
+
 app.get("/me", async (c) => {
   const identity = c.get("identity");
   const [myThreads, stats, week, myReplies, myFavorites, unread] = await Promise.all([

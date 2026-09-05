@@ -361,6 +361,12 @@ label.board-chip:has(input:checked) { background: var(--primary); border-color: 
 .notice-sub { font-size: var(--fs-sub); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .notice-time { font-size: var(--fs-sub); color: var(--text-2); flex: none; }
 .notice-end { text-align: center; font-size: var(--fs-sub); color: var(--text-2); margin-top: 20px; }
+/* P13-1：通知整行可点击（POST 标记已读 + 跳转） */
+.notice-list form { margin: 0; }
+button.notice-jump { background: none; border: none; width: 100%; text-align: left; cursor: pointer; font-family: var(--font-body); color: var(--text); }
+button.notice-jump:hover .notice-main { text-decoration: underline; }
+.notice-list > form:last-child .notice-row { border-bottom: none; }
+.notice-go { font-size: var(--fs-sub); color: var(--primary); flex: none; }
 
 /* ===== 画板 06 我的树洞 ===== */
 .me-grid { display: grid; grid-template-columns: 1fr 308px; gap: 24px; }

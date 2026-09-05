@@ -32,13 +32,14 @@ async function insertThread(
 }
 
 /** 通知写入：回复/抱抱/站务三类，payload 为展示摘要（JSON）。
- *  P12-2：过收件箱速率上限（每收件人每分钟 6 条），超出静默丢弃 */
+ *  P12-2：过收件箱速率上限（每收件人每分钟 6 条），超出静默丢弃。
+ *  P13-1：payload 携带 threadId/floor 供通知点击跳转（旧字段缺失时通知不可点击） */
 async function notify(
   kv: KVNamespace,
   db: D1Database,
   recipientId: string,
   type: "reply" | "hug" | "system",
-  payload: { main: string; sub?: string },
+  payload: { main: string; sub?: string; threadId?: string; floor?: number },
 ): Promise<void> {
   if (!(await notifyRateCap(kv, recipientId))) return;
   await db.prepare(
@@ -116,12 +117,14 @@ export async function createReply(
     await notify(kv, db, thread.identity_id, "reply", {
       main: `${displayAuthor(replier.display_no)} 回复了你的树洞「${th.title.slice(0, 12)}…」`,
       sub: text.slice(0, 30),
+      threadId, floor,
     });
   }
   if (opts.quotedAuthorId && opts.quotedAuthorId !== identityId && opts.quotedAuthorId !== thread.identity_id && replier && th) {
     await notify(kv, db, opts.quotedAuthorId, "reply", {
       main: `${displayAuthor(replier.display_no)} 在「${th.title.slice(0, 12)}…」中引用了你的楼层`,
       sub: text.slice(0, 30),
+      threadId, floor,
     });
   }
   return { ok: true, floor };
@@ -180,13 +183,15 @@ export async function toggleHug(
       if (owner && owner.identity_id !== identityId && display && th) {
         await notify(kv, db, owner.identity_id, "hug", {
           main: `${displayAuthor(display.display_no)} 抱了抱你的树洞「${th.title.slice(0, 12)}…」`,
+          threadId: targetId,
         });
       }
     } else {
-      const owner = await db.prepare("SELECT identity_id FROM replies WHERE id=?").bind(targetId).first<{ identity_id: string }>();
+      const owner = await db.prepare("SELECT identity_id, thread_id FROM replies WHERE id=?").bind(targetId).first<{ identity_id: string; thread_id: string }>();
       if (owner && owner.identity_id !== identityId && display) {
         await notify(kv, db, owner.identity_id, "hug", {
           main: `${displayAuthor(display.display_no)} 抱了抱你的楼层`,
+          threadId: owner.thread_id,
         });
       }
     }
