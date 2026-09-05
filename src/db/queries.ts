@@ -350,15 +350,24 @@ export async function getMyThreads(db: D1Database, identityId: string): Promise<
 }
 
 export async function getMyStats(db: D1Database, identityId: string) {
-  const [posts, replies, me] = await Promise.all([
+  // 抱抱实时统计（P7-1）：hug_received 列从未被写路径维护（恒为 0），改由 hugs 表按
+  // published 帖/楼作者实时 COUNT——与下方 posts/replies 的 published 口径一致
+  const [posts, replies, hugs] = await Promise.all([
     db.prepare("SELECT COUNT(*) AS n FROM threads WHERE identity_id=? AND status='published'").bind(identityId).first<{ n: number }>(),
     db.prepare("SELECT COUNT(*) AS n FROM replies WHERE identity_id=? AND status='published'").bind(identityId).first<{ n: number }>(),
-    db.prepare("SELECT hug_received FROM identities WHERE id=?").bind(identityId).first<{ hug_received: number }>(),
+    db.prepare(`
+      SELECT (
+        (SELECT COUNT(*) FROM hugs h JOIN threads t ON h.target_type='thread' AND h.target_id=t.id
+          WHERE t.identity_id=? AND t.status='published')
+        + (SELECT COUNT(*) FROM hugs h JOIN replies r ON h.target_type='reply' AND h.target_id=r.id
+          WHERE r.identity_id=? AND r.status='published')
+      ) AS n
+    `).bind(identityId, identityId).first<{ n: number }>(),
   ]);
   return {
     posts: posts?.n ?? 0,
     replies: replies?.n ?? 0,
-    hugs: me?.hug_received ?? 0,
+    hugs: hugs?.n ?? 0,
   };
 }
 
