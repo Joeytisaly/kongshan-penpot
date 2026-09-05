@@ -60,8 +60,12 @@ app.get("/", async (c) => {
   ]);
   const speakTotal = mystats.posts + mystats.replies;
   const level = levelFromPosts(speakTotal);
+  // 退出温柔化（P13-4）：/logout 回首页带提示条，讲清「退出 = 收好身份」而非消失
+  const bye = c.req.query("bye") === "1"
+    ? "你已安静离开，这次的身份已收好。凭身份码随时找回，树洞一直在。"
+    : undefined;
   // 累计发言与等级同口径（发帖+回应，实时统计）——post_count 只计发帖且含历史口径差（P7-2）
-  return c.html(<HomePage me={{ ...toDisplay(identity), totalPosts: speakTotal }} boards={boards} hots={hots} stats={stats} tracks={tracks} level={level} unread={unread} />);
+  return c.html(<HomePage me={{ ...toDisplay(identity), totalPosts: speakTotal }} boards={boards} hots={hots} stats={stats} tracks={tracks} level={level} unread={unread} byeNotice={bye} />);
 });
 
 app.get("/b/:slug", async (c) => {
@@ -249,12 +253,13 @@ app.post("/login", async (c) => {
 
 // 退出：仅清 Cookie，身份码仍可找回。
 // P12-1：mod_auth 的 path=/mod，删除必须带同 path 才能命中——此前站务会话 24h 内
-// 无任何 UI 登出（十二角色审查 #14）
+// 无任何 UI 登出（十二角色审查 #14）。
+// P13-4：回首页带 ?bye=1 提示条——让匿名访客明白「退出 = 收好当前身份」，而非消失
 app.post("/logout", (c) => {
   deleteCookie(c, COOKIE_NAME);
   deleteCookie(c, CODE_COOKIE);
   deleteCookie(c, MOD_COOKIE, { path: "/mod" });
-  return c.redirect("/");
+  return c.redirect("/?bye=1");
 });
 
 // 站务退出（P12-1）：只清站务会话，留在 /mod 页回到登录态。登出无需鉴权

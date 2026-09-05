@@ -196,6 +196,8 @@ npx wrangler d1 export kongshan-db-prod --remote --output=backup-$(date +%F).sql
 ```
 
 建议：每月执行一次 `d1 export` 落盘归档（结合定时任务或人工），Time Travel 作为日常恢复手段。
+归档脚本：`./scripts/backup.sh`（导出到仓库根目录 `backup-YYYY-MM-DD.sql`，已被 gitignore 排除；
+导出含匿名内容与身份码哈希，务必转移到站外私有存储）。
 
 ## 8. 已知边界与暂不做决策（P12-4 记录）
 

@@ -12,3 +12,6 @@ node_modules/
 .DS_Store
 Thumbs.db
 *.log
+
+# D1 备份导出（scripts/backup.sh 产物，勿提交）
+backup-*.sql
