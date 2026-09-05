@@ -309,18 +309,20 @@ export async function getOpenReports(db: D1Database) {
       COALESCE(t.title, '楼层#' || rp.floor) AS target_label,
       COALESCE(rp.content, t.content) AS target_content,
       t.essence AS thread_essence,
+      t.pinned AS thread_pinned,
       CASE r.target_type WHEN 'thread' THEN t.status ELSE rp.status END AS target_status
     FROM reports r
     LEFT JOIN threads t ON r.target_type='thread' AND t.id=r.target_id
     LEFT JOIN replies rp ON r.target_type='reply' AND rp.id=r.target_id
     WHERE r.status='open' ORDER BY r.created_at
-  `).all<{ id: string; target_type: string; target_id: string; reason: string; created_at: string; target_label: string; target_content: string | null; thread_essence: number | null; target_status: string | null }>();
+  `).all<{ id: string; target_type: string; target_id: string; reason: string; created_at: string; target_label: string; target_content: string | null; thread_essence: number | null; thread_pinned: number | null; target_status: string | null }>();
   return results.map((r) => ({
     id: r.id, targetType: r.target_type, targetId: r.target_id, reason: r.reason ?? "",
     label: r.target_label, time: formatRelativeTime(r.created_at),
     status: r.target_status ?? "missing", // 目标当前状态：published|hidden|deleted|missing（决定处置按钮组）
     content: (r.target_content ?? "").slice(0, 60),
     essence: !!r.thread_essence,
+    pinned: !!r.thread_pinned,
   }));
 }
 

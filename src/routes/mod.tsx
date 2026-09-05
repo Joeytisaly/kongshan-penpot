@@ -11,6 +11,7 @@ export interface ReportItem {
   status: string; // 目标当前状态 published|hidden|deleted|missing，决定处置按钮组
   content: string; // 被举报内容摘要（楼层举报时洞务需要看到内容才能判断）
   essence?: boolean; // 仅帖子：是否已加精（加精 toggle 按钮依据）
+  pinned?: boolean; // 仅帖子：是否已置顶（置顶 toggle 按钮依据，P9-5）
 }
 
 const REPORT_STATUS_META: Record<string, { label: string; cls: string }> = {
@@ -121,6 +122,12 @@ export const ModPage: FC<{
                       <form action="/mod/essence" method="post">
                         <input type="hidden" name="id" value={r.targetId} />
                         <button type="submit" class="btn btn-ghost reply-btn">{r.essence ? "取消精" : "加精"}</button>
+                      </form>
+                    )}
+                    {r.targetType === "thread" && r.status === "published" && (
+                      <form action="/mod/pin" method="post">
+                        <input type="hidden" name="id" value={r.targetId} />
+                        <button type="submit" class="btn btn-ghost reply-btn">{r.pinned ? "取消顶" : "置顶"}</button>
                       </form>
                     )}
                     <form action="/mod/report-done" method="post">

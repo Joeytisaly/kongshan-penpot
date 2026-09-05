@@ -381,6 +381,14 @@ app.post("/mod/essence", async (c) => {
   return c.redirect("/mod");
 });
 
+// 置顶 toggle（P9-5：对齐加精模式，threads.pinned 已被版块列表排序消费）
+app.post("/mod/pin", async (c) => {
+  if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
+  const body = await c.req.parseBody();
+  await c.env.DB.prepare("UPDATE threads SET pinned = 1 - pinned WHERE id=?").bind(String(body.id ?? "")).run();
+  return c.redirect("/mod");
+});
+
 app.post("/mod/report-done", async (c) => {
   const body = await c.req.parseBody();
   if (!(await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS))) return c.redirect("/mod");
