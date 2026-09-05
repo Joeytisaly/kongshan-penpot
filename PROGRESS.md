@@ -107,10 +107,10 @@
 
 > 切片顺序：P8-1 安全加固 → P8-2 签发豁免 → P8-3 规范化 → P8-4 版块补齐 → P8-5 语义/文档对齐 → P8-6 小项。每片过 tsc 门后更新本表再进下一片。
 
-- [-] **P8-1 站务登录加固**：新建 `src/lib/modauth.ts`——① /mod/login 加 IP-HMAC 限频 5 次/小时（同 /login 语义：不论成败计数）；② mod_auth cookie 从「值=明文 MOD_PASS」改为无状态签名令牌 `expiry.HMAC(expiry, MOD_PASS)`（避免 KV 最终一致导致偶发登录失效），7 处 `getCookie === MOD_PASS` 明文比较全部收敛到 `verifyModSession()`；③ 口令与会话校验一律恒定时间比较（SHA-256 摘要逐字节异或）。联动：全部 /mod/* 处置动作回归。旧明文 cookie 部署后自然失效，洞务需重新登录（24h 会话，可接受）
-- [ ] **P8-2 签发豁免 + favicon**：复核修正——robots.txt 本就是静态资产（不经 Worker，无需处理）；真正灌表向量是 /favicon.ico（无资产文件 → Worker 404 → 每次懒签发）与扫描器 404。方案：Layout `<head>` 加 data-URI SVG favicon（现代浏览器不再请求 /favicon.ico）+ 身份中间件对 /favicon.ico、/robots.txt 豁免签发 + notFound/onError 兜底容忍身份缺失（占位渲染，防豁免路径落入 404 时崩溃）。残留：爬虫抓 HTML 页仍会签发（路由白名单式签发属后续观察项）
-- [ ] **P8-3 /login Set-Cookie 规范化**：raw `c.header("Set-Cookie", join(", "))` 拼两条（RFC 不允许合并）→ 复用 identity middleware 的 `cookieOpts` 两次 `setCookie`
-- [ ] **P8-4 补齐设计稿版块**：migration 0004——UPDATE 既有 5 版块 sort + INSERT 设计导航里的 4 个版块（分手治愈/校园点滴/租房互助/树洞故事会，描述按 DESIGN.md 语气补写，展示层空状态已有设计）；seed.sql 版块 sort 同步为分组顺序（保证「先迁移后种子」与「先种子后迁移」两条初始化路径结果一致）。已知残留：新版块名/图标字不在书法体 woff2 子集内，按 font stack 回退楷体（重新子集化需原始字体文件，用户侧处理，见 DESIGN.md S24）
+- [x] **P8-1 站务登录加固**：新建 `src/lib/modauth.ts`——① /mod/login 加 IP-HMAC 限频 5 次/小时（同 /login 语义：不论成败计数）；② mod_auth cookie 从「值=明文 MOD_PASS」改为无状态签名令牌 `expiry.HMAC(expiry, MOD_PASS)`（避免 KV 最终一致导致偶发登录失效），7 处 `getCookie === MOD_PASS` 明文比较全部收敛到 `verifyModSession()`；③ 口令与会话校验一律恒定时间比较（SHA-256 摘要逐字节异或）。门：tsc 零错误 ✓ 2026-09-05。用户侧回归：/mod 登录（错码拒绝/对码进入）+ 过审/隐藏/恢复/删除/加精/已处理 六动作；旧明文 cookie 部署后自然失效需重登（预期）
+- [x] **P8-2 签发豁免 + favicon**：复核修正——robots.txt 本就是静态资产（不经 Worker，中间件豁免仅作兜底）；真正灌表向量是 /favicon.ico（无资产文件 → Worker 404 → 每次懒签发）与扫描器 404。落地：Layout `<head>` 加 data-URI SVG favicon（现代浏览器不再请求 /favicon.ico）+ 身份中间件对 /favicon.ico、/robots.txt 跳过查询与签发 + notFound/onError 占位兜底（FALLBACK_ME，豁免路径落入 404/500 时顶栏渲染不崩溃）。门：tsc 零错误 ✓ 2026-09-05。残留观察项：爬虫抓 HTML 页仍会签发（路由白名单式签发，暂不做）
+- [x] **P8-3 /login Set-Cookie 规范化**：raw `c.header("Set-Cookie", join(", "))`（RFC 禁止合并两条）→ 复用身份中间件导出的 `cookieOpts` 两次 `setCookie`，语义与懒签发完全一致（HttpOnly/Lax/Path=//1 年）。门：tsc 零错误 ✓ 2026-09-05。用户侧回归：凭身份码登录后 /me 正确显示身份码、刷新保持会话
+- [-] **P8-4 补齐设计稿版块**：migration 0004——UPDATE 既有 5 版块 sort + INSERT 设计导航里的 4 个版块（分手治愈/校园点滴/租房互助/树洞故事会，描述按 DESIGN.md 语气补写，展示层空状态已有设计）；seed.sql 版块 sort 同步为分组顺序（保证「先迁移后种子」与「先种子后迁移」两条初始化路径结果一致）。已知残留：新版块名/图标字不在书法体 woff2 子集内，按 font stack 回退楷体（重新子集化需原始字体文件，用户侧处理，见 DESIGN.md S24）
 - [ ] **P8-5 语义与文档对齐**：① /me/reset 兑现「旧身份码作废」（code_hash 改写为 `revoked:`||id 占位，行保留供楼层归属；其他设备旧 Cookie 不在承诺范围，记入文档）；② ARCHITECTURE §2 身份码字符集描述修正（实际仅剔 O/I/L，含 0/1，生成与正则一致）；③ §5 /t/:id 去掉 ?page= 分页声称（现全量加载，千楼级再补分页）；④ §6 显式记录 CSRF 防护依赖 SameSite=Lax 的事实
 - [ ] **P8-6 小项**：① 首访直接进 /me 时身份码卡片不显示（懒签发当次请求读不到 CODE_COOKIE）→ 中间件懒签发时 `c.set("freshCode")`，/me 回退读取；② 搜索 LIKE 未转义 %/_ → 参数侧转义 + `ESCAPE '\'`。暂缓（记录不动）：app.css 3 处硬编码色值——需先改 DESIGN.md 色板再动 CSS，纯装饰低收益
 
