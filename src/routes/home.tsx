@@ -71,7 +71,9 @@ export const HomePage: FC<{ me: Identity; boards: Board[]; hots: HotItem[]; stat
             <h2 class="card-title">今日热帖</h2>
             <a class="more-link" href="/essence">更多 ›</a>
           </header>
-          {hots.map((t, i) => (
+          {hots.length === 0 ? (
+            <p class="mine-empty">还没有热帖。第一个抱抱，会在这里出现。</p>
+          ) : hots.map((t, i) => (
             <a class="hot-row" href={`/t/${t.id}`}>
               <span class={i < 3 ? "hot-rank top" : "hot-rank"}>{i + 1}</span>
               <span class="hot-title">{t.title}</span>
