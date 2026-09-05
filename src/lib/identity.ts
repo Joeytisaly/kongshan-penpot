@@ -76,6 +76,6 @@ export function toDisplay(row: IdentityRow) {
     displayNo: String(row.display_no).padStart(4, "0"),
     level: row.level,
     joinDays: Math.max(1, Math.floor((Date.now() - new Date(row.created_at).getTime()) / 86_400_000)),
-    todayPosts: row.post_count,
+    totalPosts: row.post_count,
   };
 }

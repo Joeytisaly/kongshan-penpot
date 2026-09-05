@@ -54,7 +54,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; activeNav?: string; m
         {NAV_ITEMS.map(([label, href]) => (
           <a href={href} class={label === activeNav ? "active" : ""}>{label}</a>
         ))}
-        <span class="navbar-note">今日已有 1,286 个新洞被听见</span>
+        <span class="navbar-note">匿名树洞 · 不记录 IP · 请温柔待人</span>
       </nav>
       <main class="container">{children}</main>
       <footer class="footer">

@@ -24,5 +24,3 @@ export const services: string[] = ["树洞使用指南", "心理援助热线 123
 export const rules: string[] = [
   "一、温柔待人，恶语必删", "二、禁止广告与人身攻击", "三、不记录 IP，不收集身份", "四、有需要请联系洞务组",
 ];
-
-export const onlineUsers: string[] = ["#7712", "#3302", "#1956", "#6109"];

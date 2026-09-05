@@ -2,7 +2,6 @@
 import type { FC } from "hono/jsx";
 import { Layout } from "../components/layout";
 import { EmptyState } from "../components/empty";
-import { onlineUsers } from "../lib/static";
 import type { Board, Identity, Thread } from "../lib/types";
 
 export const BoardPage: FC<{
@@ -71,12 +70,9 @@ export const BoardPage: FC<{
           ))}
         </section>
         <section class="card-flat side-card">
-          <h2 class="card-title">在线洞友</h2>
-          <p class="side-text">3,412 位匿名洞友正在倾听</p>
-          <p class="online-chips">
-            {onlineUsers.map((u) => <span class="online-chip">{u}</span>)}
-            <span class="online-more">…</span>
-          </p>
+          <h2 class="card-title">今日动态</h2>
+          <p class="side-text">今日已有 {boardStats.today} 个新洞被听见。</p>
+          <p class="side-text">安静地陪着每一个想说的心事。</p>
         </section>
       </aside>
     </div>

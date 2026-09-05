@@ -90,11 +90,11 @@ export const HomePage: FC<{ me: Identity; boards: Board[]; hots: HotItem[]; stat
             <span class="avatar identity-avatar">洞</span>
             <div>
               <p class="identity-name">洞友 #{me.displayNo}</p>
-              <p class="identity-sub">匿名身份 · 每次进入随机更换</p>
+              <p class="identity-sub">匿名身份 · 凭身份码随时找回</p>
             </div>
           </div>
           <div class="identity-divider" />
-          <p class="identity-line">今日发言 {me.todayPosts} 次 · 等级「{level.level}」</p>
+          <p class="identity-line">累计发言 {me.totalPosts} 次 · 等级「{level.level}」</p>
           <p class="identity-line dim">{level.next ? `再发言 ${level.need} 次升级「${level.next}」` : "已是最高等级，树洞与你常相伴。"}</p>
         </section>
 

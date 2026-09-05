@@ -82,13 +82,13 @@ export const MePage: FC<{
           <span class="avatar profile-avatar">洞</span>
           <div class="profile-info">
             <p class="profile-name">洞友 #{me.displayNo}</p>
-            <p class="profile-sub">匿名身份 · 每次进入随机更换</p>
+            <p class="profile-sub">匿名身份 · 凭身份码随时找回</p>
           </div>
           <div class="profile-stats">
             <div class="pstat"><p class="pstat-num">{stats.posts}</p><p class="pstat-label">发布</p></div>
             <div class="pstat"><p class="pstat-num">{stats.replies}</p><p class="pstat-label">回应</p></div>
             <div class="pstat"><p class="pstat-num">{stats.hugs}</p><p class="pstat-label">收到的抱抱</p></div>
-            <div class="pstat"><p class="pstat-num">{me.joinDays} 天</p><p class="pstat-label">连续进入</p></div>
+            <div class="pstat"><p class="pstat-num">{me.joinDays} 天</p><p class="pstat-label">来到树洞</p></div>
           </div>
         </section>
 
