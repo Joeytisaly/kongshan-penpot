@@ -18,7 +18,7 @@ export const cookieOpts = {
   httpOnly: true, sameSite: "Lax" as const, path: "/", maxAge: COOKIE_MAX_AGE,
 };
 
-type Ctx = { Bindings: Env; Variables: { identity: IdentityRow } };
+type Ctx = { Bindings: Env; Variables: { identity: IdentityRow; freshCode?: string } };
 
 export const identityMiddleware: MiddlewareHandler<Ctx> = async (c, next) => {
   if (SKIP_ISSUE_PATHS.has(c.req.path)) return next();
@@ -50,5 +50,7 @@ export const identityMiddleware: MiddlewareHandler<Ctx> = async (c, next) => {
   });
   setCookie(c, COOKIE_NAME, id, cookieOpts);
   setCookie(c, CODE_COOKIE, code, cookieOpts); // 身份码明文随 Cookie 携带，/me 页展示供用户抄写
+  // P8-6：当次请求的响应头读不到，/me 首访靠这里拿到明文码渲染「请抄写保存」卡片
+  c.set("freshCode", code);
   await next();
 };

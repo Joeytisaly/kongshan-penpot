@@ -34,7 +34,7 @@ import type { Env } from "./types/env";
 
 type AppEnv = {
   Bindings: Env;
-  Variables: { identity: import("./lib/identity").IdentityRow };
+  Variables: { identity: import("./lib/identity").IdentityRow; freshCode?: string };
 };
 
 const app = new Hono<AppEnv>();
@@ -144,9 +144,10 @@ app.get("/me", async (c) => {
     getMyFavorites(c.env.DB, identity.id),
   ]);
   const level = levelFromPosts(stats.posts + stats.replies);
+  // 首访直接进 /me 时（懒签发当次请求）请求头里还没有 CODE_COOKIE，回退读中间件暂存的 freshCode（P8-6）
   return c.html(<MePage
     me={toDisplay(identity)}
-    identityCode={getCookie(c, CODE_COOKIE)}
+    identityCode={getCookie(c, CODE_COOKIE) ?? c.get("freshCode")}
     myThreads={myThreads} stats={{
       posts: formatCount(stats.posts), replies: formatCount(stats.replies), hugs: formatCount(stats.hugs),
     }} week={week} myReplies={myReplies} myFavorites={myFavorites} level={level}

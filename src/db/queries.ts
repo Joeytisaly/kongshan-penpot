@@ -240,14 +240,15 @@ export async function getThreadDetail(db: D1Database, threadId: string, identity
 
 /* ========== 搜索 / 精华区（P4-4：设计稿内元素落地） ========== */
 
-/** 搜索 published 帖子的标题与正文（LIKE 参数化；结果按抱抱数排序） */
+/** 搜索 published 帖子的标题与正文（LIKE 参数化；结果按抱抱数排序）。
+ *  %/_ 按字面匹配：参数侧转义 + ESCAPE '\'（P8-6） */
 export async function searchThreads(db: D1Database, q: string, limit = 20): Promise<Thread[]> {
-  const like = `%${q}%`;
+  const like = `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
   const { results } = await db.prepare(`
     SELECT t.id, t.title, t.reply_count, t.views, t.essence, i.display_no AS author_display,
       COALESCE(t.last_reply_at, t.created_at) AS last_reply_at, t.created_at
     FROM threads t JOIN identities i ON i.id=t.identity_id
-    WHERE t.status='published' AND (t.title LIKE ? OR t.content LIKE ?)
+    WHERE t.status='published' AND (t.title LIKE ? ESCAPE '\\' OR t.content LIKE ? ESCAPE '\\')
     ORDER BY t.hug_count DESC LIMIT ?
   `).bind(like, like, limit).all<ThreadRow>();
   return results.map((r) => ({
