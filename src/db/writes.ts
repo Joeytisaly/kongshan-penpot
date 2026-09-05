@@ -90,7 +90,7 @@ export async function createReply(
     db.prepare(
       `INSERT INTO replies (id, thread_id, floor, identity_id, content, quote, created_at)
        SELECT ?, ?, COALESCE(MAX(floor), 1) + 1, ?, ?, ?, ? FROM replies WHERE thread_id = ?`,
-    ).bind(id, threadId, identityId, text, quote ?? null, now, threadId),
+    ).bind(id, threadId, identityId, text, quote ? quote.slice(0, 120) : null, now, threadId),
     db.prepare("UPDATE threads SET reply_count = reply_count + 1, last_reply_at = ? WHERE id = ?").bind(now, threadId),
   ]);
   if (res.some((r) => !r.success)) return { ok: false, error: "回应没有发出去，再试一次。" };
@@ -122,6 +122,13 @@ export async function toggleHug(
   targetType: "thread" | "reply",
   targetId: string,
 ): Promise<{ ok: true; hugged: boolean; count: number } | { ok: false; error: string }> {
+  // 目标必须存在且可见（P11-2）：原实现无校验，任意 target 字符串都会插入 hugs 行
+  // （灌表向量），计数 UPDATE 对不存在的目标静默空转——对齐 toggleFavorite 的存在性校验
+  const target = targetType === "thread"
+    ? await db.prepare("SELECT id FROM threads WHERE id = ? AND status='published'").bind(targetId).first<{ id: string }>()
+    : await db.prepare("SELECT id FROM replies WHERE id = ? AND status='published'").bind(targetId).first<{ id: string }>();
+  if (!target) return { ok: false, error: "这条心事已经不在树洞了。" };
+
   const existing = await db.prepare(
     "SELECT id FROM hugs WHERE target_type = ? AND target_id = ? AND identity_id = ?",
   ).bind(targetType, targetId, identityId).first<{ id: string }>();

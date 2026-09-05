@@ -105,16 +105,17 @@ app.get("/t/:id", async (c) => {
   else if (c.req.query("faverr")) actionNotice = { kind: "error", text: "收藏没有成功，再试一次。" };
   else if (c.req.query("reporterr")) actionNotice = { kind: "error", text: "操作有点频繁啦，休息一下再试试。" };
   else if (c.req.query("lim")) actionNotice = { kind: "error", text: "动作有点快啦，歇一歇再互动吧。" };
-  // 引用预填（P4-4）：按楼层/帖子 id 读内容，生成引用文本；传 id 不传文本，不接受用户提供的原文回显
+  else if (c.req.query("replyerr")) actionNotice = { kind: "error", text: "这句话没有发出去，换个说法再试试。" };
+  // 引用预填（P4-4）：按楼层/帖子 id 服务端生成引用快照；传 id 不传文本，不接受用户提供的原文回显
   const quoteId = c.req.query("quote");
   let quotePreview: string | undefined;
   if (quoteId) {
     const hit = await getQuotePreview(c.env.DB, quoteId);
-    if (hit) quotePreview = `引用 ${displayAuthor(hit.display_no)} 的发言：${hit.content.slice(0, 60)}`;
+    if (hit) quotePreview = quoteSnapshot(hit);
   }
   // 浏览计数：KV 累积，Cron 每 10 分钟落库
   c.executionCtx.waitUntil(bumpViews(c.env.KV, c.req.param("id")));
-  return c.html(<ThreadPage me={toDisplay(identity)} detail={detail} favorited={favorited} onlyOp={onlyOp} unread={unread} error={error} actionNotice={actionNotice} quotePreview={quotePreview} />);
+  return c.html(<ThreadPage me={toDisplay(identity)} detail={detail} favorited={favorited} onlyOp={onlyOp} unread={unread} error={error} actionNotice={actionNotice} quotePreview={quotePreview} quoteId={quoteId} />);
 });
 
 // 收藏 toggle（P9-1：回跳来源页；P10-3：动作限流）
@@ -257,7 +258,7 @@ app.post("/report", async (c) => {
   const targetType = body.type === "reply" ? "reply" : "thread";
   const targetId = String(body.target ?? "");
   if (!targetId) return c.redirect(back);
-  await insertReport(c.env.DB, targetType, targetId, String(body.reason ?? ""));
+  await insertReport(c.env.DB, targetType, targetId, String(body.reason ?? "").trim().slice(0, 100));
   return c.redirect(withQuery(back, "reported=1"));
 });
 
@@ -294,7 +295,7 @@ app.post("/mod/login", async (c) => {
   const body = await c.req.parseBody();
   if (await timingSafeEqualStr(String(body.pass ?? ""), c.env.MOD_PASS)) {
     const { token, maxAge } = await createModSession(c.env.MOD_PASS);
-    setCookie(c, MOD_COOKIE, token, { httpOnly: true, sameSite: "Lax", path: "/mod", maxAge });
+    setCookie(c, MOD_COOKIE, token, { httpOnly: true, sameSite: "Lax", path: "/mod", maxAge, secure: true });
     return c.redirect("/mod");
   }
   return c.redirect("/mod?err=1");
@@ -397,12 +398,19 @@ app.post("/t/:id/reply", async (c) => {
   // 风控：每身份 1 分钟 3 条回复
   const risk = await riskCheck(c.env.KV, c.env.DB, identity.id, ip, "reply");
   if (!risk.ok) return c.redirect(`/t/${threadId}?err=1`);
+  // 引用快照服务端按 id 重新生成（P11-2）：表单 hidden 只携带目标 id，不接受用户提供的原文
+  let quote: string | undefined;
+  if (body.quote) {
+    const hit = await getQuotePreview(c.env.DB, String(body.quote));
+    if (hit) quote = quoteSnapshot(hit);
+  }
   const result = await createReply(
     c.env.DB, identity.id, threadId,
-    String(body.content ?? ""), body.quote ? String(body.quote) : undefined,
+    String(body.content ?? ""), quote,
   );
-  if (result.ok) await riskRecord(c.env.KV, identity.id, ip, "reply");
-  return c.redirect(`/t/${threadId}${result.ok ? `#floor-${result.floor}` : ""}`);
+  if (!result.ok) return c.redirect(`/t/${threadId}?replyerr=1`);
+  await riskRecord(c.env.KV, identity.id, ip, "reply");
+  return c.redirect(`/t/${threadId}#floor-${result.floor}`);
 });
 
 // 抱抱 toggle（P9-1：回跳来源页；P10-3：动作限流 + 通知防骚扰在 writes 内）
@@ -424,10 +432,21 @@ const pageMe = (c: Context<AppEnv>): Identity => {
   return row ? toDisplay(row) : FALLBACK_ME;
 };
 
-// P9-1：动作端点回跳目标校验——须站内路径（/ 开头且非 // 协议相对，防 open redirect）
-const safeReturn = (v: unknown, fallback = "/"): string =>
-  typeof v === "string" && v.startsWith("/") && !v.startsWith("//") ? v : fallback;
+// P9-1：动作端点回跳目标校验——须站内路径（/ 开头且非 // 协议相对，防 open redirect）。
+// P11-2：先把 \ 归一为 / 再校验——浏览器把 Location 里的 \ 等同 /（WHATWG URL），
+// 不归一的话 "/\evil.com" 会绕过 // 检查被当成协议相对地址跳到外部站
+const safeReturn = (v: unknown, fallback = "/"): string => {
+  if (typeof v !== "string") return fallback;
+  const path = v.replace(/\\/g, "/");
+  return path.startsWith("/") && !path.startsWith("//") ? path : fallback;
+};
 const withQuery = (path: string, q: string): string => `${path}${path.includes("?") ? "&" : "?"}${q}`;
+
+// 引用快照唯一生成点（P11-2）：按目标 id 服务端生成快照文本。表单只携带 id，
+// GET（预览）与 POST（落库）都经此生成——用户自填引用原文的路径已封死，
+// 杜绝伪造「引用 某洞友 的发言：…」冒充他人
+const quoteSnapshot = (hit: { content: string; display_no: number }): string =>
+  `引用 ${displayAuthor(hit.display_no)} 的发言：${hit.content.slice(0, 60)}`;
 
 // 温柔 404（S22：完整页面）
 app.notFound((c) =>

@@ -142,6 +142,7 @@
 > 纪律：每片过门 = `tsc --noEmit` 零错误 + `npm test` 全绿 + wrangler dev 本地冒烟；开工前过 AGENTS.md 依赖地图，联动改动同片完成；涉及 schema 的切片标注「先部署代码后迁移」顺序。
 
 - [x] **P11-1 时间正确性**：楼层「今天 HH:MM」与相对时间 MM-DD 按 Asia/Shanghai 渲染（Workers 时区恒为 UTC，大陆用户看到的时间差 8 小时）；「今日新洞」统计日界（getBoardStats/getCommunityStats）改为上海日界（UTC 串 `datetime('now','+8 hours','start of day','-8 hours')`）；toDisplay.joinDays 改 UTC 解析 + NaN 守卫（原 `new Date("YYYY-MM-DD HH:MM:SS")` 按本机时区解析，Workers 上侥幸正确、本机开发/测试偏差，与 ageMinutes 统一）。联动：format.ts / identity.ts / queries.ts 两处 SQL / format.test.ts 断言改为确定性（Intl 固定时区）/ ARCHITECTURE §6 记录展示时区决策。门：tsc 零错误 + 71 用例 + 本地冒烟（D1 验证上海日界=UTC 前日 16:00；楼层标签显示上海时间 9-04 17:48，旧实现为 09:48） ✓ 2026-09-05
+- [x] **P11-2 写路径加固**：① safeReturn 把 `\` 归一为 `/` 再校验（浏览器将 Location 中 `\` 等同 `/`，`/\evil.com` 绕过 `//` 检查跳外部站）；② 引用快照收敛服务端唯一生成——表单 hidden 字段只传目标 id，POST /t/:id/reply 按 id 重新生成快照（原直接落用户提供的文本，可伪造「引用 洞务组 的发言：…」），createReply 防御性截断 120 字；③ 举报 reason 截断 100 字；④ toggleHug 补目标存在且 published 校验（原任意 target 字符串都会插 hugs 行——灌表向量，对齐 toggleFavorite）；⑤ cookieOpts 与 mod 会话 cookie 补 `secure: true`；⑥ CSP 补 `frame-ancestors 'none'`；⑦ 回复失败静默回跳改 `?replyerr=1` 提示条（原计划列于 P11-4，随 ② 同路径前移至本片完成）。联动：index.tsx / thread.tsx（quote 隐藏字段 id 化）/ writes.ts / identity.ts / security.ts / ARCHITECTURE §5。门：tsc 零错误 + 71 用例 + 冒烟四断言（Set-Cookie 带 Secure + CSP 带 frame-ancestors；`/\evil.com` 回跳归一为 `/`；无效目标 hugerr=1；quote=id 生成服务端快照、伪造文本被忽略、GET 预览正常） ✓ 2026-09-05
 
 ---
 

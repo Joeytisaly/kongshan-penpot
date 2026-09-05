@@ -136,7 +136,7 @@ CREATE INDEX idx_fav_owner ON favorites(identity_id, created_at DESC);
 | `/b/:slug` | GET | 版块帖子列表（?page=） | 02 |
 | `/t/:id` | GET | 盖楼详情（浏览+1；楼层当前全量加载，千楼级再补分页） | 03 |
 | `/new` | GET/POST | 发新洞（风控+验证码+审核） | 04 |
-| `/t/:id/reply` | POST | 回复（楼层自增，限流） | 03 |
+| `/t/:id/reply` | POST | 回复（楼层自增，限流；引用快照由服务端按表单携带的 quote 目标 id 重新生成，不接受用户提供的原文——P11-2） | 03 |
 | `/hug` | POST | 抱抱（幂等 toggle） | 02/03 |
 | `/favorite` | POST | 收藏（幂等 toggle） | 03/06 |
 | `/report` | POST | 举报（达 3 次自动隐藏；IP-HMAC 5 次/小时限流） | 03 |

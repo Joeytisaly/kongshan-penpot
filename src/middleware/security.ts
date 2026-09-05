@@ -8,9 +8,9 @@ export const securityMiddleware: MiddlewareHandler = async (c, next) => {
   c.header("X-Robots-Tag", "noindex, nofollow");
   c.header("X-Content-Type-Options", "nosniff");
   c.header("Referrer-Policy", "no-referrer");
-  // CSP 宽松起步：允许同源与内联样式（Hono JSX 输出 style 属性需要）
+  // CSP 宽松起步：允许同源与内联样式（Hono JSX 输出 style 属性需要）；frame-ancestors 禁被嵌（P11-2）
   c.header(
     "Content-Security-Policy",
-    "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'; connect-src 'self'",
+    "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'; connect-src 'self'; frame-ancestors 'none'",
   );
 };

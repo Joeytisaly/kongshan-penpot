@@ -14,9 +14,9 @@ const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 年
 // 灌大。命中路径的请求不带 identity——notFound/onError 已做占位兜底
 const SKIP_ISSUE_PATHS = new Set(["/robots.txt", "/favicon.ico"]);
 
-/** 身份 Cookie 公共参数 */
+/** 身份 Cookie 公共参数（P11-2 补 secure：全站 HTTPS；localhost 上浏览器视为安全上下文不受影响） */
 export const cookieOpts = {
-  httpOnly: true, sameSite: "Lax" as const, path: "/", maxAge: COOKIE_MAX_AGE,
+  httpOnly: true, sameSite: "Lax" as const, path: "/", maxAge: COOKIE_MAX_AGE, secure: true,
 };
 
 type Ctx = { Bindings: Env; Variables: { identity: IdentityRow; freshCode?: string } };
