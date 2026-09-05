@@ -124,6 +124,16 @@
 - [x] **P9-4 顶栏消息未读红点**：getUnreadCount（COUNT read_at IS NULL，走 idx_notif_owner）+ Layout「消息」徽标（>9 显 9+，.unread-badge 仅用 token 变量）+ 全部 10 个页面路由传参（404/onError 占位不传——豁免路径无徽标属预期）。门：tsc 零错误 + Node UTF-8 冒烟（A 发帖→B 回复→A 首页//me 红点 1→全部已读→0→B 无通知 0；badge 全页扫描 10/10）✓ 2026-09-05。经验补充：新身份 10 分钟冷却会拦自动化发帖测试——Node 脚本内置古诗验证码求解（题库与 captcha.ts 同步）
 - [x] **P9-5 站务置顶/取消置顶**：/mod/pin（`pinned = 1 - pinned`，对齐加精模式）+ 举报队列帖子条目「置顶/取消顶」按钮 + getOpenReports 补 thread_pinned 字段。门：tsc 零错误 + Node 冒烟（举报→队列按钮→toggle→版块页置顶组提前→恢复现场）✓ 2026-09-05
 
+## P10 工程基座（测试/CI/防刷/分层）
+
+> 目标：把「编译+冒烟」的手工验收升级为可自动回归的工程基座，并补齐写路径防刷短板。
+
+- [x] **P10-1 单元测试基建**：vitest 5（devDependency），测试与源码同目录；8 个测试文件 66 用例——identity（码格式/字符集/正则/哈希/双格式年龄：ISO 脏数据解析失败从严视为新身份）、level 五档阈值边界、words 三级判定优先级、captcha（一次性销毁防重放/normalize，POEM_BANK 导出供测试）、format（万/千分位/UTC 解析/洞务组展示）、modauth（签名会话/过期/篡改/畸形输入）、risk（发帖冷却/回复限流/IP 限流/换日盐轮换/原始 IP 不落盘）、cache（命中/未命中/坏 JSON）。共享 TTL 感知 KV stub（fake timers 下按 Date.now 过期）。AGENTS.md 验收门升级：tsc + npm test + 冒烟三重门。门：66/66 + tsc 零错误 ✓ 2026-09-05
+- [-] **P10-2 GitHub Actions CI**：.github/workflows/ci.yml——push/PR 跑 npm ci + typecheck + test，不自动部署；本地先验证等价命令链，真实 CI 首跑随下次授权推送触发
+- [ ] **P10-3 抱抱/收藏限流 + 通知防骚扰**：risk.ts 新增每身份动作计数（1 分钟 10 次，attempt-based）挂到 /hug、/favorite；toggleHug 通知前 KV 去重键 `notif:hug:{actor}:{target}`（TTL 1h）
+- [ ] **P10-4 index.tsx SQL 收敛**：新建 src/db/mod.ts——insertReport（落库+计数+自动隐藏合体）、readAllNotifications、站务六处置；index.tsx 回归纯编排；AGENTS.md 依赖地图同步
+- [ ] **P10-5 分页补全**：notifications/search 加 ?page= 分页（复用 .pagination 样式）；flushViews 补 kv.list 游标循环（>1000 键防御）
+
 ---
 
 ## 变更记录
