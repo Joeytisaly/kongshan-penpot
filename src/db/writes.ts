@@ -81,21 +81,20 @@ export async function createReply(
   ).bind(threadId).first<{ id: string; identity_id: string; board_id: string }>();
   if (!thread) return { ok: false, error: "这棵树已经不在树洞了。" };
 
-  // 楼层号自增（事务内取 max+1，避免并发重复）；无回复时从 2 楼起（1 楼保留给楼主）
-  const floorRow = await db.prepare(
-    "SELECT COALESCE(MAX(floor), 1) + 1 AS next_floor FROM replies WHERE thread_id = ?",
-  ).bind(threadId).first<{ next_floor: number }>();
-  const floor = floorRow?.next_floor ?? 2;
+  // 楼层号原子生成：INSERT...SELECT 同语句内取 max+1，根治并发重楼（P5-4）；无回复时从 2 楼起（1 楼保留给楼主）
   const id = crypto.randomUUID();
   const now = sqliteNow();
 
   const res = await db.batch([
     db.prepare(
-      "INSERT INTO replies (id, thread_id, floor, identity_id, content, quote, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    ).bind(id, threadId, floor, identityId, text, quote ?? null, now),
+      `INSERT INTO replies (id, thread_id, floor, identity_id, content, quote, created_at)
+       SELECT ?, ?, COALESCE(MAX(floor), 1) + 1, ?, ?, ?, ? FROM replies WHERE thread_id = ?`,
+    ).bind(id, threadId, identityId, text, quote ?? null, now, threadId),
     db.prepare("UPDATE threads SET reply_count = reply_count + 1, last_reply_at = ? WHERE id = ?").bind(now, threadId),
   ]);
   if (res.some((r) => !r.success)) return { ok: false, error: "回应没有发出去，再试一次。" };
+  const floorRow = await db.prepare("SELECT floor FROM replies WHERE id = ?").bind(id).first<{ floor: number }>();
+  const floor = floorRow?.floor ?? 2;
 
   // 通知楼主（自回不通知）
   if (thread.identity_id !== identityId) {
@@ -145,17 +144,26 @@ export async function toggleHug(
       : "SELECT hug_count FROM replies WHERE id = ?",
   ).bind(targetId).first<{ hug_count: number }>();
 
-  // 抱抱帖子时通知楼主（本人抱自己不通知；取消抱抱不通知）
-  if (targetType === "thread" && hugged) {
-    const [owner, display, th] = await Promise.all([
-      db.prepare("SELECT identity_id FROM threads WHERE id=?").bind(targetId).first<{ identity_id: string }>(),
-      db.prepare("SELECT display_no FROM identities WHERE id=?").bind(identityId).first<{ display_no: number }>(),
-      db.prepare("SELECT title FROM threads WHERE id=?").bind(targetId).first<{ title: string }>(),
-    ]);
-    if (owner && owner.identity_id !== identityId && display && th) {
-      await notify(db, owner.identity_id, "hug", {
-        main: `${displayAuthor(display.display_no)} 抱了抱你的树洞「${th.title.slice(0, 12)}…」`,
-      });
+  // 抱抱产生通知（本人抱自己不通知；取消抱抱不通知）：帖子通知楼主，楼层通知楼层作者（P5-4 补齐）
+  if (hugged) {
+    const display = await db.prepare("SELECT display_no FROM identities WHERE id=?").bind(identityId).first<{ display_no: number }>();
+    if (targetType === "thread") {
+      const [owner, th] = await Promise.all([
+        db.prepare("SELECT identity_id FROM threads WHERE id=?").bind(targetId).first<{ identity_id: string }>(),
+        db.prepare("SELECT title FROM threads WHERE id=?").bind(targetId).first<{ title: string }>(),
+      ]);
+      if (owner && owner.identity_id !== identityId && display && th) {
+        await notify(db, owner.identity_id, "hug", {
+          main: `${displayAuthor(display.display_no)} 抱了抱你的树洞「${th.title.slice(0, 12)}…」`,
+        });
+      }
+    } else {
+      const owner = await db.prepare("SELECT identity_id FROM replies WHERE id=?").bind(targetId).first<{ identity_id: string }>();
+      if (owner && owner.identity_id !== identityId && display) {
+        await notify(db, owner.identity_id, "hug", {
+          main: `${displayAuthor(display.display_no)} 抱了抱你的楼层`,
+        });
+      }
     }
   }
   return { ok: true, hugged, count: row?.hug_count ?? 0 };

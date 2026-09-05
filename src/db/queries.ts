@@ -209,7 +209,9 @@ export async function getThreadDetail(db: D1Database, threadId: string, identity
   return {
     id: t.id, boardSlug: t.board_slug, boardName: t.board_name, title: t.title,
     meta: `回复 ${formatCount(t.reply_count)} · 查看 ${formatCount(t.views)} · 只看楼主 · 收藏`,
-    selfHarm: judgeContent(t.title + t.content) === "self-harm",
+    // 自伤判定覆盖楼主正文与全部可见楼层（P5-4：回复命中也触发 12356 横幅）
+    selfHarm: judgeContent(t.title + t.content) === "self-harm"
+      || replies.some((r) => judgeContent(r.content) === "self-harm"),
     floors, participants, related,
   };
 }
@@ -365,13 +367,14 @@ export async function getMyStats(db: D1Database, identityId: string) {
 export async function getCommunityStats(db: D1Database): Promise<Array<[string, string]>> {
   const r = await db.prepare(`
     SELECT
-      (SELECT COUNT(*) FROM identities) AS identities,
+      (SELECT COUNT(*) FROM identities i WHERE EXISTS (SELECT 1 FROM threads t WHERE t.identity_id = i.id AND t.status = 'published')
+        OR EXISTS (SELECT 1 FROM replies r WHERE r.identity_id = i.id AND r.status = 'published')) AS speakers,
       (SELECT COUNT(*) FROM threads WHERE status='published' AND created_at >= date('now')) AS today_threads,
       (SELECT COALESCE(SUM(hug_count),0) FROM threads WHERE status='published') AS hugs,
       (SELECT COUNT(*) FROM threads WHERE status='published') AS topics
-  `).first<{ identities: number; today_threads: number; hugs: number; topics: number }>();
+  `).first<{ speakers: number; today_threads: number; hugs: number; topics: number }>();
   return [
-    ["注册洞友", formatCount(r?.identities ?? 0)],
+    ["发言洞友", formatCount(r?.speakers ?? 0)],
     ["今日新洞", formatCount(r?.today_threads ?? 0)],
     ["累计抱抱", formatCount(r?.hugs ?? 0)],
     ["树洞主题", formatCount(r?.topics ?? 0)],
