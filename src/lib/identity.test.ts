@@ -87,14 +87,13 @@ describe("identityAgeMinutes（双格式兼容）", () => {
 });
 
 describe("toDisplay", () => {
-  it("编号补零 4 位、joinDays 至少 1 天、totalPosts 透传", () => {
+  it("编号补零 4 位、joinDays 至少 1 天（post_count 已随 0007 移除，P11-6）", () => {
     const created = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 19).replace("T", " ");
     const d = toDisplay({
-      id: "x", code_hash: "h", display_no: 42, post_count: 7,
+      id: "x", code_hash: "h", display_no: 42,
       created_at: created, last_seen_at: null,
     });
     expect(d.displayNo).toBe("0042");
     expect(d.joinDays).toBeGreaterThanOrEqual(3);
-    expect(d.totalPosts).toBe(7);
   });
 });

@@ -2,7 +2,6 @@
 import type { FC } from "hono/jsx";
 import { Layout } from "../components/layout";
 import { EmptyState } from "../components/empty";
-import { boardGroupName } from "../lib/static";
 import type { Board, Identity, Thread } from "../lib/types";
 
 export const BoardPage: FC<{
@@ -16,7 +15,7 @@ export const BoardPage: FC<{
   unread?: number;
 }> = ({ board, me, threads, boardStats, hot, page, totalPages, unread }) => (
   <Layout title={board.name} activeNav={board.name} me={me} unread={unread}>
-    <p class="crumb">空山 › {boardGroupName(board.slug)} › {board.name}</p>
+    <p class="crumb">空山 › {board.group} › {board.name}</p>
     <div class="board-head">
       <div>
         <h1 class="board-title">{board.name}</h1>

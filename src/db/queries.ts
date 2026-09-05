@@ -11,14 +11,15 @@ import { cached } from "../lib/cache";
 /* ========== 首页 01（热帖榜/版块统计走 KV 缓存 60s） ========== */
 
 export interface BoardRow {
-  slug: string; name: string; description: string; mood: Mood; icon_char: string;
+  slug: string; name: string; description: string; mood: Mood; icon_char: string; group_name: string;
   topic_count: number; post_count: number; last_user: number | null; last_time: string | null;
 }
 
 export async function getBoards(kv: KVNamespace, db: D1Database): Promise<Board[]> {
-  return cached(kv, "cache:boards", 60, async () => {
+  // v2：Board 契约加了 group（P11-6）——换键避免部署后读到旧形状缓存渲染 undefined
+  return cached(kv, "cache:boards:v2", 60, async () => {
     const { results } = await db.prepare(`
-      SELECT b.slug, b.name, b.description, b.mood, b.icon_char,
+      SELECT b.slug, b.name, b.description, b.mood, b.icon_char, b.group_name,
         (SELECT COUNT(*) FROM threads t WHERE t.board_id = b.id AND t.status='published') AS topic_count,
         (SELECT COUNT(*) FROM replies r JOIN threads t ON t.id=r.thread_id WHERE t.board_id=b.id AND r.status='published') AS post_count,
         COALESCE(
@@ -40,6 +41,7 @@ export async function getBoards(kv: KVNamespace, db: D1Database): Promise<Board[
       name: r.name,
       description: r.description,
       mood: r.mood,
+      group: r.group_name || "版块",
       iconChar: r.icon_char,
       topicCount: formatCount(r.topic_count),
       postCount: formatCount(r.post_count),
@@ -51,11 +53,12 @@ export async function getBoards(kv: KVNamespace, db: D1Database): Promise<Board[
 
 export async function getBoardBySlug(db: D1Database, slug: string): Promise<Board | null> {
   const b = await db.prepare(
-    "SELECT slug, name, description, mood, icon_char FROM boards WHERE slug = ?",
+    "SELECT slug, name, description, mood, icon_char, group_name FROM boards WHERE slug = ?",
   ).bind(slug).first<BoardRow>();
   if (!b) return null;
   return {
     slug: b.slug, name: b.name, description: b.description, mood: b.mood, iconChar: b.icon_char,
+    group: b.group_name || "版块",
     topicCount: "", postCount: "", lastReplyUser: "", lastReplyTime: "",
   };
 }
@@ -363,7 +366,8 @@ export async function getOpenReports(db: D1Database) {
 /* ========== 热帖榜（首页右侧） ========== */
 
 export async function getHotThreads(kv: KVNamespace, db: D1Database): Promise<HotItem[]> {
-  return cached(kv, "cache:hot", 60, async () => {
+  // v2：HotItem 契约 replies → hugs（P11-5）——换键避免部署后读到旧形状缓存
+  return cached(kv, "cache:hot:v2", 60, async () => {
     const { results } = await db.prepare(`
       SELECT t.id, t.title, b.name AS board_name, b.mood, t.hug_count
       FROM threads t JOIN boards b ON b.id=t.board_id
@@ -373,6 +377,15 @@ export async function getHotThreads(kv: KVNamespace, db: D1Database): Promise<Ho
       id: r.id, title: r.title, boardName: r.board_name, boardMood: r.mood, hugs: formatCount(r.hug_count),
     }));
   });
+}
+
+/** 版块热帖（版块页右栏，P11-6 自 index.tsx 收敛——index 回归纯编排） */
+export async function getBoardHot(db: D1Database, boardSlug: string): Promise<Array<[string, string]>> {
+  const { results } = await db.prepare(`
+    SELECT t.title, t.hug_count FROM threads t JOIN boards b ON b.id=t.board_id
+    WHERE b.slug=? AND t.status='published' ORDER BY t.hug_count DESC LIMIT 5
+  `).bind(boardSlug).all<{ title: string; hug_count: number }>();
+  return results.map((x) => [x.title, formatCount(x.hug_count)] as [string, string]);
 }
 
 /* ========== 消息通知 05 ========== */

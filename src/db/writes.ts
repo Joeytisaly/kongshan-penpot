@@ -60,7 +60,9 @@ export async function createThread(
   const now = sqliteNow();
   const inserted = await insertThread(db, id, board.id, identityId, title, content, now);
   if (!inserted.ok) return inserted;
-  await db.prepare("UPDATE identities SET post_count = post_count + 1, last_seen_at = datetime('now') WHERE id = ?").bind(identityId).run();
+  // P11-6：post_count 死列已随 0007 移除（只写不读）——发言数由真实表实时计算（P7-2），
+  // 这里只维护最近活跃时间
+  await db.prepare("UPDATE identities SET last_seen_at = datetime('now') WHERE id = ?").bind(identityId).run();
   return { ok: true, id, pending: judgeContent(title + content) === "pending" };
 }
 

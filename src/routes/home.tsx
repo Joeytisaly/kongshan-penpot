@@ -1,7 +1,7 @@
 // 画板 01 首页 · 版块广场（S12：数据源从 mock 切换到 D1 查询层）
 import type { FC } from "hono/jsx";
 import { Layout } from "../components/layout";
-import { navGroups, services } from "../lib/static";
+import { services } from "../lib/static";
 import type { Board, HotItem, Identity } from "../lib/types";
 import type { LevelInfo } from "../lib/level";
 
@@ -18,13 +18,13 @@ export const HomePage: FC<{ me: Identity; boards: Board[]; hots: HotItem[]; stat
       <aside class="home-left">
         <section class="card-flat side-card">
           <h2 class="card-title">版块导航</h2>
-          {navGroups.map((g) => (
-            <div class="nav-group">
-              <p class="nav-group-name">{g.name}</p>
-              {g.items.map((it) => (
-                <a class={it.active ? "nav-item active" : "nav-item"} href={`/b/${it.slug}`}>
-                  · {it.name}
-                </a>
+          {/* 分组由 boards.group_name（0006 起 DB 单一事实来源，P11-6）驱动；boards 已按 sort 排序，
+              分组按首次出现顺序排列 */}
+          {[...new Set(boards.map((b) => b.group))].map((g) => (
+            <div class="nav-group" key={g}>
+              <p class="nav-group-name">{g}</p>
+              {boards.filter((b) => b.group === g).map((b) => (
+                <a class="nav-item" href={`/b/${b.slug}`}>· {b.name}</a>
               ))}
             </div>
           ))}

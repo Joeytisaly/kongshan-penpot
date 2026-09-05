@@ -11,6 +11,7 @@ export interface Board {
   name: string; // 如 "深夜树洞"
   description: string;
   mood: Mood;
+  group: string; // 分组名（如 "情感区"）——0006 起随版块入库，单一事实来源（P11-6）
   iconChar: string; // 图标单字，如 "夜"
   topicCount: string; // 展示用，如 "2,418"
   postCount: string; // 展示用，如 "3.6万"
@@ -63,7 +64,7 @@ export interface Notice {
 export interface Identity {
   displayNo: string; // 如 "8829"
   joinDays: number;
-  totalPosts: number; // 累计发言（发帖+回应），与树洞等级同口径；首页路由以实时统计注入（P7-2）
+  totalPosts?: number; // 累计发言——仅首页身份卡消费，由首页路由注入实时统计（P11-6 起 toDisplay 不再产出）
 }
 
 /** 我的帖子行 */
@@ -85,10 +86,4 @@ export interface HotItem {
   boardName: string;
   boardMood: Mood;
   hugs: string; // 抱抱数展示——榜单按 hug_count 排序（P11-5：原字段名 replies 与展示「N 回复」都是错的）
-}
-
-/** 左栏版块导航分组 */
-export interface NavGroup {
-  name: string; // 如 "情感区"
-  items: Array<{ name: string; slug: string; active: boolean }>;
 }

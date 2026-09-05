@@ -1,28 +1,30 @@
 -- 空山 · 种子数据（内容与 Penpot 画板一致；时间用相对偏移，展示层格式化出"x 分钟前"）
 
 -- 版块（sort 与 0004 分组顺序一致；其余 4 版块由 0004 迁移插入——fresh 库「先迁移后种子」
--- 与线上「存量库跑迁移」两条路径得到相同的 9 版块与排序）
-INSERT INTO boards (id, slug, name, description, mood, icon_char, sort) VALUES
-  ('board-shenye',  'shenye',  '深夜树洞', '凌晨两点之后，心事不打烊。',       '树洞', '夜', 1),
-  ('board-qinggan', 'qinggan', '情感树洞', '暗恋、异地、告别，都放在这里。',   '难过', '情', 2),
-  ('board-zhichang','zhichang','职场吐槽', '老板看不见的委屈，这里都看得见。', '焦虑', '职', 4),
-  ('board-jinli',   'jinli',   '锦鲤祈愿', '把好运大声说出来！',               '开心', '锦', 7),
-  ('board-lingyi',  'lingyi',  '灵异夜话', '胆小的洞友请抱紧自己的抱枕。',     '感悟', '灵', 8);
+-- 与线上「存量库跑迁移」两条路径得到相同的 9 版块与排序。
+-- group_name 随 0006 入库（P11-6 分组单一事实来源）：fresh 路径种子行自带分组，
+-- 0004 插入的 4 版块由 0006 的 UPDATE 回填）
+INSERT INTO boards (id, slug, name, description, mood, icon_char, sort, group_name) VALUES
+  ('board-shenye',  'shenye',  '深夜树洞', '凌晨两点之后，心事不打烊。',       '树洞', '夜', 1, '情感区'),
+  ('board-qinggan', 'qinggan', '情感树洞', '暗恋、异地、告别，都放在这里。',   '难过', '情', 2, '情感区'),
+  ('board-zhichang','zhichang','职场吐槽', '老板看不见的委屈，这里都看得见。', '焦虑', '职', 4, '生活区'),
+  ('board-jinli',   'jinli',   '锦鲤祈愿', '把好运大声说出来！',               '开心', '锦', 7, '趣味区'),
+  ('board-lingyi',  'lingyi',  '灵异夜话', '胆小的洞友请抱紧自己的抱枕。',     '感悟', '灵', 8, '趣味区');
 
 -- 演示身份（code_hash 前缀 seed- 表示不可登录的演示作者；display_no=0 表示"洞务组"）
--- 等级/抱抱列已随 0003 移除（P7-3）：等级由发言数实时计算，演示身份各 1 帖 → 一叶
-INSERT INTO identities (id, code_hash, display_no, post_count) VALUES
-  ('id-mod',  'seed-mod',  0,    1),
-  ('id-4821', 'seed-4821', 4821, 1),
-  ('id-3302', 'seed-3302', 3302, 1),
-  ('id-2077', 'seed-2077', 2077, 1),
-  ('id-1956', 'seed-1956', 1956, 1),
-  ('id-6109', 'seed-6109', 6109, 1),
-  ('id-0413', 'seed-0413', 0413, 1),
-  ('id-5104', 'seed-5104', 5104, 1),
-  ('id-0417', 'seed-0417', 0417, 1),
-  ('id-7712', 'seed-7712', 7712, 0),
-  ('id-8829', 'seed-8829', 8829, 1);
+-- 等级/抱抱列已随 0003 移除（P7-3）；post_count 已随 0007 移除（P11-6，只写不读的死列）
+INSERT INTO identities (id, code_hash, display_no) VALUES
+  ('id-mod',  'seed-mod',  0),
+  ('id-4821', 'seed-4821', 4821),
+  ('id-3302', 'seed-3302', 3302),
+  ('id-2077', 'seed-2077', 2077),
+  ('id-1956', 'seed-1956', 1956),
+  ('id-6109', 'seed-6109', 6109),
+  ('id-0413', 'seed-0413', 0413),
+  ('id-5104', 'seed-5104', 5104),
+  ('id-0417', 'seed-0417', 0417),
+  ('id-7712', 'seed-7712', 7712),
+  ('id-8829', 'seed-8829', 8829);
 
 -- 帖子（10 条，全部在深夜树洞，对应画板 02 列表）
 INSERT INTO threads (id, board_id, identity_id, title, content, views, reply_count, hug_count, pinned, essence, status, created_at, last_reply_at) VALUES

@@ -193,9 +193,6 @@ main.container { max-width: 1312px; margin: 0 auto; padding: 0 0 40px; }
 
 .board-hot-row { display: flex; justify-content: space-between; font-size: var(--fs-sub); padding: 5px 0; }
 .board-hot-title { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.online-chips { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
-.online-chip { background: var(--primary-light); color: var(--primary); font-size: var(--fs-aux); font-weight: 500; border-radius: 12px; height: 24px; padding: 0 10px; display: inline-flex; align-items: center; }
-.online-more { color: var(--text-2); }
 
 .pagination { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
 .page-btn {
@@ -319,7 +316,6 @@ label.board-chip:has(input:checked) { background: var(--primary); border-color: 
   padding: 6px 8px; font-family: var(--font-body); font-size: var(--fs-list); color: var(--text);
 }
 .compose-textarea textarea::placeholder { color: var(--text-2); }
-.compose-textarea p { padding: 6px 8px; }
 .compose-count { position: absolute; right: 16px; bottom: 12px; font-size: var(--fs-sub); color: var(--text-2); }
 .compose-anon {
   display: flex; align-items: center; gap: 10px; margin-top: 24px;

@@ -15,7 +15,7 @@ import { Layout } from "./components/layout";
 import { SearchPage } from "./routes/search";
 import { EssencePage } from "./routes/essence";
 import {
-  getBoardBySlug, getBoardStats, getBoards, getCommunityStats, getEssenceThreads, getHotThreads,
+  getBoardBySlug, getBoardHot, getBoardStats, getBoards, getCommunityStats, getEssenceThreads, getHotThreads,
   getIdentityByCodeHash, getMyFavorites, getMyReplies, getMyStats, getMyThreads, getMyTracks,
   getNotices, getQuotePreview, getUnreadCount, getOpenReports, getPendingThreads, getThreadDetail,
   getThreads, getWeekStats, isFavorited, searchThreads,
@@ -73,19 +73,13 @@ app.get("/b/:slug", async (c) => {
   const [{ threads, totalPages }, boardStats, hot, unread] = await Promise.all([
     getThreads(db, slug, page, PAGE_SIZE),
     getBoardStats(db, slug),
-    db.prepare(`
-      SELECT t.title, t.hug_count FROM threads t JOIN boards b ON b.id=t.board_id
-      WHERE b.slug=? AND t.status='published' ORDER BY t.hug_count DESC LIMIT 5
-    `).bind(slug).all<{ title: string; hug_count: number }>().then((r) =>
-      r.results.map((x) => [x.title, x.hug_count] as [string, number]),
-    ),
+    getBoardHot(db, slug), // P11-6：原内联 SQL 收敛 queries.ts
     getUnreadCount(db, c.get("identity").id),
   ]);
   const boardFull = (await getBoards(c.env.KV, db)).find((b) => b.slug === slug) ?? board;
-  const hotStr = hot.map(([t, n]) => [t, formatCount(n)] as [string, string]);
   return c.html(<BoardPage
     board={boardFull} me={toDisplay(c.get("identity"))} threads={threads}
-    boardStats={boardStats} hot={hotStr} page={page} totalPages={totalPages} unread={unread}
+    boardStats={boardStats} hot={hot} page={page} totalPages={totalPages} unread={unread}
   />);
 });
 

@@ -7,12 +7,12 @@ import { ageMinutes } from "./format";
 const CODE_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 /** identities 表行（数据层形态）。
- *  0003 已移除 level / hug_received 死列：等级与「收到的抱抱」一律由真实表实时计算（P7） */
+ *  0003 已移除 level / hug_received 死列（P7）；0007 已移除 post_count 死列（P11-6，
+ *  只写不读）——等级与「收到的抱抱」「累计发言」一律由真实表实时计算 */
 export interface IdentityRow {
   id: string;
   code_hash: string;
   display_no: number;
-  post_count: number;
   created_at: string;
   last_seen_at: string | null;
 }
@@ -69,7 +69,8 @@ export function identityAgeMinutes(row: Pick<IdentityRow, "created_at">): number
   return Number.isNaN(n) ? 0 : n;
 }
 
-/** DB 行 → 页面展示契约（UI 只依赖 types.ts 的 Identity，数据层形态在此转换） */
+/** DB 行 → 页面展示契约（UI 只依赖 types.ts 的 Identity，数据层形态在此转换）。
+ *  totalPosts 不在此产出（P11-6）：仅首页身份卡消费，由路由注入实时统计（P7-2） */
 export function toDisplay(row: IdentityRow) {
   // created_at 是 SQLite UTC 串：显式按 UTC 解析（与 ageMinutes 同构）。直接
   // new Date("YYYY-MM-DD HH:MM:SS") 按机器时区解析——Workers(UTC) 上侥幸正确，
@@ -78,6 +79,5 @@ export function toDisplay(row: IdentityRow) {
   return {
     displayNo: String(row.display_no).padStart(4, "0"),
     joinDays: Number.isNaN(created) ? 1 : Math.max(1, Math.floor((Date.now() - created) / 86_400_000)),
-    totalPosts: row.post_count,
   };
 }

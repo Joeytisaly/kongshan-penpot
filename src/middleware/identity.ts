@@ -42,7 +42,6 @@ export const identityMiddleware: MiddlewareHandler<Ctx> = async (c, next) => {
 
   c.set("identity", {
     id, code_hash: codeHash, display_no: displayNo,
-    post_count: 0,
     // 与 D1 datetime('now') 同构（UTC、空格分隔）：ageMin/toDisplay 等消费方按同一格式解析
     created_at: new Date().toISOString().slice(0, 19).replace("T", " "),
     last_seen_at: null,

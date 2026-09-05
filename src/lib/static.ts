@@ -1,27 +1,7 @@
 // 静态配置数据 —— 与业务数据无关的 UI 常量（不属于 D1 管辖）
-import type { NavGroup } from "./types";
-
-export const navGroups: NavGroup[] = [
-  { name: "情感区", items: [
-    { name: "深夜树洞", slug: "shenye", active: true },
-    { name: "情感树洞", slug: "qinggan", active: false },
-    { name: "分手治愈", slug: "fenshou", active: false },
-  ]},
-  { name: "生活区", items: [
-    { name: "职场吐槽", slug: "zhichang", active: false },
-    { name: "校园点滴", slug: "xiaoyuan", active: false },
-    { name: "租房互助", slug: "zufang", active: false },
-  ]},
-  { name: "趣味区", items: [
-    { name: "锦鲤祈愿", slug: "jinli", active: false },
-    { name: "灵异夜话", slug: "lingyi", active: false },
-    { name: "树洞故事会", slug: "gushihui", active: false },
-  ]},
-];
-
-/** 版块所属分组名（P11-5：版块页面包屑用，替代写死的「情感区」；未登记 slug 回落「版块」） */
-export const boardGroupName = (slug: string): string =>
-  navGroups.find((g) => g.items.some((i) => i.slug === slug))?.name ?? "版块";
+// P11-6：navGroups（版块分组）已退役——分组随版块入库 boards.group_name（0006），
+// 首页左栏导航由 DB 驱动。顶栏 NAV_ITEMS（layout.tsx）为策划型设计元素（画板通用结构），
+// 新增版块不自动进入顶栏，需手工评估——这是有意保留的少数硬编码之一。
 
 export const services: string[] = ["树洞使用指南", "心理援助热线 12356", "内容与社区规范"];
 

@@ -56,6 +56,7 @@ CREATE TABLE boards (
   id TEXT PRIMARY KEY, slug TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL, description TEXT, mood TEXT,
   icon_char TEXT NOT NULL DEFAULT '',    -- 版块图标单字（如 "夜"）
+  group_name TEXT NOT NULL DEFAULT '',   -- 分组名（如 "情感区"，0006 起单一事实来源——P11-6）
   sort INTEGER DEFAULT 0
 );
 
@@ -63,12 +64,12 @@ CREATE TABLE identities (
   id TEXT PRIMARY KEY,
   code_hash TEXT UNIQUE NOT NULL,      -- SHA-256(身份码+pepper)
   display_no INTEGER NOT NULL,          -- 洞友 #xxxx
-  post_count INTEGER DEFAULT 0,         -- 发帖计数（createThread 维护）
   created_at TEXT DEFAULT (datetime('now')),
   last_seen_at TEXT
 );
--- 0003 已移除 level / hug_received 死列（P7）：无写路径维护的冗余列会读到「永远不对的数字」；
--- 树洞等级与「收到的抱抱」一律由真实表实时计算（等级阈值唯一事实来源 src/lib/level.ts）。
+-- 0003 已移除 level / hug_received 死列（P7），0007 已移除 post_count 死列（P11-6，
+-- 只写不读的反向死列）：发言数/等级/收到的抱抱一律由真实表实时计算
+--（等级阈值唯一事实来源 src/lib/level.ts）。
 
 CREATE TABLE threads (
   id TEXT PRIMARY KEY, board_id TEXT NOT NULL REFERENCES boards(id),

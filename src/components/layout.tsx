@@ -2,6 +2,9 @@
 import type { FC, PropsWithChildren } from "hono/jsx";
 import type { Identity } from "../lib/types";
 
+// 顶栏导航为策划型设计元素（画板通用结构）：精选版块 + 精华区/站务入口。
+// 有意不随 boards 表自动扩展（P11-6 注记）——新增版块默认只进首页版块广场与左栏导航，
+// 是否上顶栏由运营判断后手工追加。
 const NAV_ITEMS: Array<[string, string]> = [
   ["全部版块", "/"],
   ["深夜树洞", "/b/shenye"],
