@@ -129,10 +129,10 @@
 > 目标：把「编译+冒烟」的手工验收升级为可自动回归的工程基座，并补齐写路径防刷短板。
 
 - [x] **P10-1 单元测试基建**：vitest 5（devDependency），测试与源码同目录；8 个测试文件 66 用例——identity（码格式/字符集/正则/哈希/双格式年龄：ISO 脏数据解析失败从严视为新身份）、level 五档阈值边界、words 三级判定优先级、captcha（一次性销毁防重放/normalize，POEM_BANK 导出供测试）、format（万/千分位/UTC 解析/洞务组展示）、modauth（签名会话/过期/篡改/畸形输入）、risk（发帖冷却/回复限流/IP 限流/换日盐轮换/原始 IP 不落盘）、cache（命中/未命中/坏 JSON）。共享 TTL 感知 KV stub（fake timers 下按 Date.now 过期）。AGENTS.md 验收门升级：tsc + npm test + 冒烟三重门。门：66/66 + tsc 零错误 ✓ 2026-09-05
-- [-] **P10-2 GitHub Actions CI**：.github/workflows/ci.yml——push/PR 跑 npm ci + typecheck + test，不自动部署；本地先验证等价命令链，真实 CI 首跑随下次授权推送触发
-- [ ] **P10-3 抱抱/收藏限流 + 通知防骚扰**：risk.ts 新增每身份动作计数（1 分钟 10 次，attempt-based）挂到 /hug、/favorite；toggleHug 通知前 KV 去重键 `notif:hug:{actor}:{target}`（TTL 1h）
-- [ ] **P10-4 index.tsx SQL 收敛**：新建 src/db/mod.ts——insertReport（落库+计数+自动隐藏合体）、readAllNotifications、站务六处置；index.tsx 回归纯编排；AGENTS.md 依赖地图同步
-- [ ] **P10-5 分页补全**：notifications/search 加 ?page= 分页（复用 .pagination 样式）；flushViews 补 kv.list 游标循环（>1000 键防御）
+- [x] **P10-2 GitHub Actions CI**：.github/workflows/ci.yml——push/PR 跑 npm ci + typecheck + test，不自动部署；本地以干净检出（git archive + npm ci）验证等价命令链全绿；真实 CI 首跑随下次授权推送触发 ✓ 2026-09-05
+- [x] **P10-3 抱抱/收藏限流 + 通知防骚扰**：risk.ts 新增 actCheck/actRecord（每身份 1 分钟 10 次，attempt-based）挂到 /hug、/favorite（lim=1 回跳提示）；hugNotifyOnce KV 去重键（同 actor+target 1 小时只通知一次）接入 toggleHug（签名加 kv 参数）。门：tsc + 69 用例 + Node 冒烟（12 次连点 3 次被限、楼主仅 1 条通知）✓ 2026-09-05
+- [x] **P10-4 index.tsx SQL 收敛**：新建 src/db/mod.ts（insertReport 合体落库+计数+自动隐藏、readAllNotifications、hide/restore/deleteTarget 含举报联动与计数回收、toggleEssence/togglePin、resolveReport）；queries.ts 收编 getQuotePreview/getIdentityByCodeHash；writes.ts 新增 insertIdentity（消灭懒签发与重置的双份 INSERT）+ revokeIdentityCode。index.tsx 内联 SQL 清零，回归纯编排；AGENTS.md 依赖地图补 db/mod.ts。**回归发现并修复真 bug：/me/reset 仍是 join(", ") 拼接 Set-Cookie（P8-3 漏改），统一为 setCookie 两次**。门：tsc + 69 用例 + 16 项全链路断言（懒签发/举报×3/站务六动作/待审过审/登录/重置/已读）✓ 2026-09-05
+- [x] **P10-5 分页补全**：getNotices/searchThreads 改分页结构（LIMIT 20/OFFSET + COUNT，返回 {items, page, totalPages}，契约演进联动两路由两页面）；通知/搜索页复用 .pagination 样式渲染页码（type/q 参数在链接中保留，& 经 JSX 转义为 &amp; 浏览器语义等价）；flushViews 补 kv.list 游标循环（>1000 键防御）。门：tsc + 69 用例 + 造数冒烟（25 条通知→第1页20+第2页5+page=0 收敛；访问帖→/cdn-cgi/local/scheduled→views 落库 732→734）✓ 2026-09-05
 
 ---
 
@@ -161,4 +161,5 @@
 | 2026-09-05 | **P7 收官**：P7-1 收到的抱抱改 hugs 表实时 COUNT；P7-2 楼层等级/首页累计发言改实时口径（UNION 一次取全楼作者发言数，洞务组特例保留）；P7-3 migration 0003 移除 identities 死列 level/hug_received 并联动全部引用（共同根因：无写路径的冗余列）。三片均过 tsc 门。⚠️ 上线顺序：**先 deploy 后 d1 migrations apply**；冒烟清单见 P7 各切片用户侧注记 |
 | 2026-09-05 | **P8 收官**（6 切片均过 tsc 门）：P8-1 站务登录限频+HMAC 签名会话+恒定时间比较（新建 modauth.ts，7 处明文比较收敛）；P8-2 favicon data-URI + /favicon.ico、/robots.txt 豁免签发 + 404/500 占位兜底（复核修正：robots.txt 本是静态资产不经 Worker）；P8-3 /login Set-Cookie 规范为独立响应头；P8-4 migration 0004 补齐 4 设计版块并重排分组 sort（seed 同步，双路径一致）；P8-5 重置身份兑现旧码作废 + ARCHITECTURE 三处对齐（字符集/分页声称/CSRF 记录）；P8-6 首访身份码 freshCode 回退 + 搜索 LIKE 转义。用户侧操作：deploy → migrations apply（0003+0004）→ 回归清单见各切片注记 |
 | 2026-09-05 | **P9 收官**（5 切片均过门，待部署）：P9-1 抱抱/收藏/举报改回跳来源页+结果提示条（修复点按钮落裸 JSON 页的现网缺陷，open-redirect 守卫）；P9-2 楼层回复按钮锚点落地 + reply_to 死字段清理；P9-3 只看楼主视图（?op=1）；P9-4 顶栏消息未读红点全站联动（badge 10/10 页面覆盖）；P9-5 站务置顶 toggle。测试经验沉淀：Git Bash MSYS 路径转换改写表单值 → MSYS_NO_PATHCONV=1 + URL 编码；新身份冷却拦自动化测试 → Node UTF-8 脚本内置古诗求解 |
+| 2026-09-05 | **P10 收官**（5 切片均过门，待推送触发 CI 首跑）：P10-1 vitest 单测基建 8 模块 66 用例（TTL 感知 KV stub + fake timers），AGENTS.md 验收门升级「tsc + npm test + 冒烟」三重门；P10-2 GitHub Actions CI（不自动部署，本地干净检出验证等价链）；P10-3 抱抱/收藏动作限流（1 分钟 10 次）+ 抱抱通知 1 小时去重；P10-4 新建 db/mod.ts 收敛站务/举报/身份 SQL，index.tsx 内联 SQL 清零，**回归发现并修复 /me/reset 的 Set-Cookie 拼接遗留 bug（P8-3 漏改）**；P10-5 通知/搜索分页 + flushViews 游标循环。冒烟踩坑记录：本地共享 127.0.0.1 限流桶会跨轮次耗尽（dev 下 cf-connecting-ip 可伪造供测试用，线上由边缘覆写不可伪造）；隐藏帖不进版块列表属预期行为 |
 | 2026-09-05 | **P7+P8 部署上线**（版本 bcf4405f）并推送 GitHub：本地冒烟全绿（本地 0003/0004 迁移 + wrangler dev 十页/豁免路径 0 Cookie 下发/站务签名会话错码拒对码进/详情页 UNION 等级/搜索 ESCAPE/首访 freshCode）后按「先 deploy 后迁移」顺序上线；远程 0003+0004 迁移成功（PRAGMA 确认 identities 死列已删、boards 9 个含 4 新版块）；线上只读复验（单 Cookie 罐全程一次签发）——15 页 200 + 404 兜底、4 新版块首页渲染、favicon data-URI、楼层等级实时计算含洞务组特例、/me 身份码卡片、安全头三件套，全部通过 |
