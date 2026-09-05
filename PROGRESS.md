@@ -159,6 +159,7 @@
 > 纪律同 P11：每片过门 = tsc 零错误 + npm test 全绿 + wrangler dev 本地冒烟；开工前过依赖地图，联动同片完成；上线顺序敏感处标注。
 
 - [x] **P12-1 身份动线闭环**：① 顶栏加「找回身份」链接（/login 此前全站零入口——丢 Cookie 用户必须手输 URL，审查发现 #3）；② 首帖引导——POST /new 成功后检测该身份 published 帖数==1，redirect 带 ?first=1，详情页提示条引导去「我的树洞」抄写身份码（审查发现 #1：身份码发现缺失是最主要的身份流失点）；③ 站务会话可退出——新增 POST /mod/logout（deleteCookie 带 path=/mod，此前 24h 会话无 UI 登出、共享设备风险，审查发现 #14），/logout 顺手双保险清 mod cookie。联动：layout.tsx / index.tsx（logout、/new 首帖检测、thread first 提示）/ mod.tsx（退出按钮）/ app.css（mod-head）/ ARCHITECTURE §5。门：tsc 零错误 + 80 用例 + Node UTF-8 冒烟 6 断言全过（顶栏链接、古诗验证码全流程首帖 redirect ?first=1、详情页引导提示条、mod 登录含退出按钮、logout 下发 mod_auth=; Max-Age=0; Path=/mod、删 cookie 后回登录态）。记录的设计边界：无状态签名令牌的「登出」=浏览器删 cookie，已拷贝的令牌值在过期前仍可重放（与 JWT 同理，MVP 接受；未来可加令牌版本号或 KV 黑名单） ✓ 2026-09-05
+- [x] **P12-2 防刷补口**：① 回复补 IP-HMAC 限流 30 条/小时（原仅每身份 3 条/分钟，清 Cookie 换身份即绕过——懒签发零成本，可无限刷回复/灌通知/刷 reply_count，审查发现 #21；正常互动远达不到、CGNAT 共享出口留余量，与发帖 10 帖/小时同模式）；② 通知收件箱保护 notifyRateCap——每收件人每分钟最多 6 条新通知，超出静默丢弃（hugNotifyOnce 管「同人重复」，这里管「无限身份涌进来的总量洪峰」，真实洞友一分钟 6+ 条已属重度互动）；③ ARCHITECTURE §3 风控表补两行。联动：risk.ts（check/record reply 分支 + notifyRateCap）/ writes.ts（notify 加 kv 参数与 cap 接入、createReply 签名加 kv）/ index.tsx（reply 调用）/ risk.test.ts（+3 用例）。门：tsc 零错误 + 83 用例 + 冒烟（伪造 cf-connecting-ip 隔离桶：30 条回复成功、第 31 条 redirect ?err=1 被 IP 限流拦截；楼主 30 条回复仅落 6 条通知=cap 精确生效；冒烟数据已清理） ✓ 2026-09-05
 
 ---
 

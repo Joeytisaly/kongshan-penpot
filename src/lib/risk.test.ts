@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { actCheck, actRecord, hugNotifyOnce, ipHmac, ipRateLimit, ipRateRecord, riskCheck, riskRecord } from "./risk";
+import { actCheck, actRecord, hugNotifyOnce, ipHmac, ipRateLimit, ipRateRecord, notifyRateCap, riskCheck, riskRecord } from "./risk";
 import { kvStub } from "./testutil";
 
 afterEach(() => vi.useRealTimers());
@@ -95,6 +95,41 @@ describe("通用 IP 限流（举报/登录）", () => {
     const kv = kvStub();
     await ipRateRecord(kv, "9.9.9.9", "login", 3600);
     expect((await ipRateLimit(kv, "9.9.9.9", "report", 5, 3600)).ok).toBe(true);
+  });
+});
+
+describe("回复 IP 限流：每小时 30 条（P12-2，换身份也逃不掉）", () => {
+  it("每身份各发 1 条，同 IP 第 31 条被拦", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-05T12:00:00Z"));
+    const kv = kvStub();
+    for (let i = 0; i < 30; i++) {
+      expect((await riskCheck(kv, {} as D1Database, `id-${i}`, "4.4.4.4", "reply")).ok).toBe(true);
+      await riskRecord(kv, `id-${i}`, "4.4.4.4", "reply");
+    }
+    const blocked = await riskCheck(kv, {} as D1Database, "fresh-id", "4.4.4.4", "reply");
+    expect(blocked.ok).toBe(false);
+    expect(blocked.reason).toContain("设备");
+  });
+  it("不同 IP 互不影响", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-05T12:00:00Z"));
+    const kv = kvStub();
+    for (let i = 0; i < 30; i++) await riskRecord(kv, `id-${i}`, "4.4.4.4", "reply");
+    expect((await riskCheck(kv, {} as D1Database, "fresh-id", "5.5.5.5", "reply")).ok).toBe(true);
+  });
+});
+
+describe("通知收件箱保护（notifyRateCap，P12-2）", () => {
+  it("每收件人每分钟前 6 条放行、之后静默拒绝", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-05T12:00:00Z"));
+    const kv = kvStub();
+    for (let i = 0; i < 6; i++) expect(await notifyRateCap(kv, "owner")).toBe(true);
+    expect(await notifyRateCap(kv, "owner")).toBe(false);
+    expect(await notifyRateCap(kv, "other-owner")).toBe(true); // 不同收件人独立配额
+    advance(61);
+    expect(await notifyRateCap(kv, "owner")).toBe(true); // 下一分钟窗口恢复
   });
 });
 

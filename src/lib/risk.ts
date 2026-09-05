@@ -12,6 +12,7 @@ const THREAD_INTERVAL = 5 * 60; // 每身份 5 分钟 1 帖
 const REPLY_LIMIT = 3; // 每身份 1 分钟 3 回复
 const REPLY_WINDOW = 60; // 秒
 const IP_THREAD_LIMIT = 10; // 每 IP-HMAC 每小时 10 帖
+const IP_REPLY_LIMIT = 30; // 每 IP-HMAC 每小时 30 回复（P12-2：原仅每身份限频，换身份可绕过）
 
 const K_THREAD = (id: string) => `risk:thread:${id}`;
 const K_REPLIES = (id: string) => `risk:replies:${id}`;
@@ -56,13 +57,17 @@ export async function riskCheck(
       return { ok: false, reason: `树洞也需要慢慢说。${wait > 60 ? `${Math.ceil(wait / 60)} 分钟` : `${wait} 秒`}后再写下一个吧。` };
     }
   }
-  // 3) 回复频率：每身份 1 分钟 3 条
+  // 3) 回复频率：每身份 1 分钟 3 条 + 每 IP-HMAC 30 条/小时（P12-2）
   if (action === "reply") {
     const list = (await kv.get(K_REPLIES(identityId)))?.split(",").map(Number).filter(Boolean) ?? [];
     const cutoff = Date.now() - REPLY_WINDOW * 1000;
     const recent = list.filter((t) => t > cutoff);
     if (recent.length >= REPLY_LIMIT) {
       return { ok: false, reason: "一口气说了好多啦。歇一分钟，再继续说吧。" };
+    }
+    const iph = await ipHmac(kv, ip);
+    if ((Number(await kv.get(K_IP_SCOPE("reply", iph))) || 0) >= IP_REPLY_LIMIT) {
+      return { ok: false, reason: "今晚在这台设备上的回应有点多了，歇一歇，树洞明天还在。" };
     }
   }
   // 4) IP-HMAC 限流：每小时 10 帖
@@ -87,6 +92,10 @@ export async function riskRecord(kv: KVNamespace, identityId: string, ip: string
     const list = (await kv.get(K_REPLIES(identityId)))?.split(",").map(Number).filter(Boolean) ?? [];
     list.push(Date.now());
     await kv.put(K_REPLIES(identityId), list.slice(-10).join(","), { expirationTtl: REPLY_WINDOW * 3 });
+    // P12-2：IP 维度计数（与发帖同模式，1 小时窗口）
+    const iph = await ipHmac(kv, ip);
+    const n = (Number(await kv.get(K_IP_SCOPE("reply", iph))) || 0) + 1;
+    await kv.put(K_IP_SCOPE("reply", iph), String(n), { expirationTtl: 3600 });
   }
 }
 
@@ -144,5 +153,22 @@ export async function hugNotifyOnce(kv: KVNamespace, actorId: string, targetId: 
   const key = `notif:hug:${actorId}:${targetId}`;
   if (await kv.get(key)) return false;
   await kv.put(key, "1", { expirationTtl: 3600 });
+  return true;
+}
+
+/* ========== 通知收件箱保护（P12-2） ========== */
+
+const NOTIF_CAP = 6; // 每收件人每分钟最多 6 条新通知
+
+/** 通知速率上限：每收件人每分钟 NOTIF_CAP 条，超出返回 false（调用方静默丢弃）。
+ *  hugNotifyOnce 管「同一洞友重复动作」的去重，这里管「无限身份涌进来的总量洪峰」——
+ *  换身份刷回复可绕过一切按身份的去重，只有按收件人的总量上限能保住收件箱。
+ *  真实洞友一分钟收到 6 条以上通知已属重度互动，丢弃可接受 */
+export async function notifyRateCap(kv: KVNamespace, recipientId: string): Promise<boolean> {
+  const bucket = Math.floor(Date.now() / 60_000);
+  const key = `notif:cap:${recipientId}:${bucket}`;
+  const n = Number(await kv.get(key)) || 0;
+  if (n >= NOTIF_CAP) return false;
+  await kv.put(key, String(n + 1), { expirationTtl: 120 });
   return true;
 }

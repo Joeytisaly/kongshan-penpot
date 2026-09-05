@@ -2,7 +2,7 @@
 // 依赖地图：writes.ts ↔ index.tsx（POST 路由）+ 表单页面；改动需跑通三链路实测（AGENTS.md §2）
 
 import { displayAuthor, ageMinutes } from "../lib/format";
-import { hugNotifyOnce } from "../lib/risk";
+import { hugNotifyOnce, notifyRateCap } from "../lib/risk";
 
 /** 当前 UTC 时间，与 D1 datetime('now') 同构（SQLite 格式）。
  *  必须——seed/DB DEFAULT/ageMinutes/formatRelativeTime 全按此格式解析，
@@ -31,13 +31,16 @@ async function insertThread(
   return { ok: true };
 }
 
-/** 通知写入：回复/抱抱/站务三类，payload 为展示摘要（JSON） */
+/** 通知写入：回复/抱抱/站务三类，payload 为展示摘要（JSON）。
+ *  P12-2：过收件箱速率上限（每收件人每分钟 6 条），超出静默丢弃 */
 async function notify(
+  kv: KVNamespace,
   db: D1Database,
   recipientId: string,
   type: "reply" | "hug" | "system",
   payload: { main: string; sub?: string },
 ): Promise<void> {
+  if (!(await notifyRateCap(kv, recipientId))) return;
   await db.prepare(
     "INSERT INTO notifications (id, identity_id, type, payload) VALUES (?, ?, ?, ?)",
   ).bind(crypto.randomUUID(), recipientId, type, JSON.stringify(payload)).run();
@@ -66,8 +69,10 @@ export async function createThread(
   return { ok: true, id, pending: judgeContent(title + content) === "pending" };
 }
 
-/** 回复：楼层号自增（事务内 max+1），同步回复数/最后回复时间，可选引用；违规词直接拒绝 */
+/** 回复：楼层号自增（事务内 max+1），同步回复数/最后回复时间，可选引用；违规词直接拒绝。
+ *  kv 用于 IP 限流记账与通知收件箱保护（P12-2） */
 export async function createReply(
+  kv: KVNamespace,
   db: D1Database,
   identityId: string,
   threadId: string,
@@ -106,7 +111,7 @@ export async function createReply(
       db.prepare("SELECT title FROM threads WHERE id=?").bind(threadId).first<{ title: string }>(),
     ]);
     if (author && th) {
-      await notify(db, thread.identity_id, "reply", {
+      await notify(kv, db, thread.identity_id, "reply", {
         main: `${displayAuthor(author.display_no)} 回复了你的树洞「${th.title.slice(0, 12)}…」`,
         sub: text.slice(0, 30),
       });
@@ -166,14 +171,14 @@ export async function toggleHug(
         db.prepare("SELECT title FROM threads WHERE id=?").bind(targetId).first<{ title: string }>(),
       ]);
       if (owner && owner.identity_id !== identityId && display && th) {
-        await notify(db, owner.identity_id, "hug", {
+        await notify(kv, db, owner.identity_id, "hug", {
           main: `${displayAuthor(display.display_no)} 抱了抱你的树洞「${th.title.slice(0, 12)}…」`,
         });
       }
     } else {
       const owner = await db.prepare("SELECT identity_id FROM replies WHERE id=?").bind(targetId).first<{ identity_id: string }>();
       if (owner && owner.identity_id !== identityId && display) {
-        await notify(db, owner.identity_id, "hug", {
+        await notify(kv, db, owner.identity_id, "hug", {
           main: `${displayAuthor(display.display_no)} 抱了抱你的楼层`,
         });
       }

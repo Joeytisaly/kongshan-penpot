@@ -472,7 +472,7 @@ app.post("/t/:id/reply", async (c) => {
     if (hit) quote = quoteSnapshot(hit);
   }
   const result = await createReply(
-    c.env.DB, identity.id, threadId,
+    c.env.KV, c.env.DB, identity.id, threadId,
     String(body.content ?? ""), quote,
   );
   if (!result.ok) return c.redirect(`/t/${threadId}?replyerr=1`);
