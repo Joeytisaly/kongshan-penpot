@@ -88,6 +88,12 @@ app.get("/t/:id", async (c) => {
   if (!detail) return c.notFound();
   const favorited = await isFavorited(c.env.DB, identity.id, c.req.param("id"));
   const error = c.req.query("err") ? "一口气说了好多啦。歇一分钟，再继续说吧。" : undefined;
+  // P9-1：动作端点回跳提示条（举报确认 / 抱抱、收藏、举报失败）
+  let actionNotice: { kind: "warm" | "error"; text: string } | undefined;
+  if (c.req.query("reported")) actionNotice = { kind: "warm", text: "谢谢你的守护，洞务组会看到这条举报的。" };
+  else if (c.req.query("hugerr")) actionNotice = { kind: "error", text: "抱抱没有送到，再试一次。" };
+  else if (c.req.query("faverr")) actionNotice = { kind: "error", text: "收藏没有成功，再试一次。" };
+  else if (c.req.query("reporterr")) actionNotice = { kind: "error", text: "操作有点频繁啦，休息一下再试试。" };
   // 引用预填（P4-4）：按楼层/帖子 id 读内容，生成引用文本；传 id 不传文本，不接受用户提供的原文回显
   const quoteId = c.req.query("quote");
   let quotePreview: string | undefined;
@@ -102,14 +108,15 @@ app.get("/t/:id", async (c) => {
   }
   // 浏览计数：KV 累积，Cron 每 10 分钟落库
   c.executionCtx.waitUntil(bumpViews(c.env.KV, c.req.param("id")));
-  return c.html(<ThreadPage me={toDisplay(identity)} detail={detail} favorited={favorited} error={error} quotePreview={quotePreview} />);
+  return c.html(<ThreadPage me={toDisplay(identity)} detail={detail} favorited={favorited} error={error} actionNotice={actionNotice} quotePreview={quotePreview} />);
 });
 
-// 收藏 toggle
+// 收藏 toggle（P9-1：无 JS 表单架构，JSON 退役，303 回跳来源页；失败带 faverr 提示）
 app.post("/favorite", async (c) => {
   const body = await c.req.parseBody();
   const result = await toggleFavorite(c.env.DB, c.get("identity").id, String(body.target ?? ""));
-  return c.json(result);
+  const back = safeReturn(body.return);
+  return c.redirect(result.ok ? back : withQuery(back, "faverr=1"));
 });
 
 app.get("/new", async (c) => {
@@ -217,15 +224,17 @@ app.post("/me/reset", async (c) => {
 });
 
 // 举报：累计 3 次自动隐藏目标（限流：每 IP-HMAC 5 次/小时——懒签发+清 Cookie 可无限换身份，必须按设备限）
+// P9-1：结果经回跳 query 提示（reported=1 / reporterr=1），不再返回 JSON
 app.post("/report", async (c) => {
+  const body = await c.req.parseBody();
+  const back = safeReturn(body.return);
   const ip = c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for") ?? null;
   const limit = await ipRateLimit(c.env.KV, ip, "report", 5, 3600);
-  if (!limit.ok) return c.json({ ok: false, error: "操作有点频繁啦，休息一下再试试。" });
+  if (!limit.ok) return c.redirect(withQuery(back, "reporterr=1"));
   await ipRateRecord(c.env.KV, ip, "report", 3600);
-  const body = await c.req.parseBody();
   const targetType = body.type === "reply" ? "reply" : "thread";
   const targetId = String(body.target ?? "");
-  if (!targetId) return c.json({ ok: false });
+  if (!targetId) return c.redirect(back);
   await c.env.DB.prepare(
     "INSERT INTO reports (id, target_type, target_id, reason) VALUES (?, ?, ?, ?)",
   ).bind(crypto.randomUUID(), targetType, targetId, String(body.reason ?? "")).run();
@@ -240,7 +249,7 @@ app.post("/report", async (c) => {
         : "UPDATE replies SET status='hidden' WHERE id=?",
     ).bind(targetId).run();
   }
-  return c.json({ ok: true, reports: n, hidden: n >= 3 });
+  return c.redirect(withQuery(back, "reported=1"));
 });
 
 // 用户自助删除：10 分钟内收回自己的帖子/楼层（兑现「10 分钟内可删除」文案承诺）
@@ -409,11 +418,13 @@ app.post("/t/:id/reply", async (c) => {
   return c.redirect(`/t/${threadId}${result.ok ? `#floor-${result.floor}` : ""}`);
 });
 
+// 抱抱 toggle（P9-1：回跳来源页；失败带 hugerr 提示）
 app.post("/hug", async (c) => {
   const body = await c.req.parseBody();
   const type = body.type === "reply" ? "reply" : "thread";
   const result = await toggleHug(c.env.DB, c.get("identity").id, type, String(body.target ?? ""));
-  return c.json(result);
+  const back = safeReturn(body.return);
+  return c.redirect(result.ok ? back : withQuery(back, "hugerr=1"));
 });
 
 // 免签发路径（P8-2）或中间件异常时 identity 可能缺失——404/500 页用占位身份渲染顶栏，保证兜底页自身不 500
@@ -422,6 +433,11 @@ const pageMe = (c: Context<AppEnv>): Identity => {
   const row = c.get("identity") as IdentityRow | undefined;
   return row ? toDisplay(row) : FALLBACK_ME;
 };
+
+// P9-1：动作端点回跳目标校验——须站内路径（/ 开头且非 // 协议相对，防 open redirect）
+const safeReturn = (v: unknown, fallback = "/"): string =>
+  typeof v === "string" && v.startsWith("/") && !v.startsWith("//") ? v : fallback;
+const withQuery = (path: string, q: string): string => `${path}${path.includes("?") ? "&" : "?"}${q}`;
 
 // 温柔 404（S22：完整页面）
 app.notFound((c) =>
