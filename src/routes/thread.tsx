@@ -113,7 +113,7 @@ export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boo
           <form action={`/t/${detail.id}/reply`} method="post">
             {quotePreview && <input type="hidden" name="quote" value={quoteId} />}
             {replyTargetPreview && <input type="hidden" name="replyTarget" value={replyTargetId} />}
-            <textarea class="reply-box" name="content" rows={2} placeholder="说点善意的吧，今晚大家都辛苦了…" aria-label="快速回复">{replyValue}</textarea>
+            <textarea class="reply-box" name="content" rows={4} placeholder="说点善意的吧，今晚大家都辛苦了…（最多 300 字）" aria-label="快速回复">{replyValue}</textarea>
             <div class="reply-foot">
               <span class="reply-note">回复将以随机身份「洞友 #{me.displayNo}」发出，10 分钟内可删除</span>
               <button type="submit" class="btn reply-btn">匿名回复</button>

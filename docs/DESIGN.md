@@ -38,6 +38,7 @@
 - 正文/UI：**系统字体栈**（PingFang SC / Microsoft YaHei 等，大陆必达）
 - 品牌/标题：**Ma Shan Zheng**（书法体，仅 Logo、版块名、等级名）——**自托管 woff2 子集**（`assets/fonts/ma-shan-zheng-subset.woff2`，299KB，仅含项目文案用字；不依赖 Google Fonts，大陆可达）。新增文案需重新子集化（fonttools 脚本见 S24）
 - 字号阶梯：11（辅助）/ 12（次级）/ 13（列表）/ 14（正文）/ 15（卡片标题）/ 20（页标题）/ 26（品牌）
+- 输入控件（P15-2）：内容输入一律 14px（fs-body）+ 主文字色 var(--text)（placeholder 用次级灰）——输入可用性优先于列表字号阶梯；聚焦态白底 + 主色边框（纯 CSS :focus）；回复框 4 行起可拖拽增高
 - 圆角：卡片 12–16px，按钮/标签 全圆角（高度一半），输入框 8px
 - 阴影：`0 2px 10px rgba(38,51,44,0.07)`（仅主卡片与主按钮）
 
