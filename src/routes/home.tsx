@@ -76,7 +76,7 @@ export const HomePage: FC<{ me: Identity; boards: Board[]; hots: HotItem[]; stat
               <span class="hot-title">{t.title}</span>
               <span class={`hot-board mood-${t.boardMood}`}>{t.boardName}</span>
               <span class="hot-count">
-                <span dangerouslySetInnerHTML={{ __html: HEART_ICON }} /> {t.replies} 回复
+                <span dangerouslySetInnerHTML={{ __html: HEART_ICON }} /> {t.hugs} 抱抱
               </span>
             </a>
           ))}

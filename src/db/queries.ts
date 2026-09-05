@@ -274,7 +274,7 @@ export async function searchThreads(
   q: string,
   page = 1,
   pageSize = 20,
-): Promise<{ threads: Thread[]; page: number; totalPages: number }> {
+): Promise<{ threads: Thread[]; page: number; totalPages: number; total: number }> {
   page = Math.max(1, page);
   const like = `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
   const where = `t.status='published' AND (t.title LIKE ? ESCAPE '\\' OR t.content LIKE ? ESCAPE '\\')`;
@@ -298,6 +298,7 @@ export async function searchThreads(
     })),
     page,
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    total,
   };
 }
 
@@ -369,7 +370,7 @@ export async function getHotThreads(kv: KVNamespace, db: D1Database): Promise<Ho
       WHERE t.status='published' ORDER BY t.hug_count DESC LIMIT 8
     `).all<{ id: string; title: string; board_name: string; mood: Mood; hug_count: number }>();
     return results.map((r) => ({
-      id: r.id, title: r.title, boardName: r.board_name, boardMood: r.mood, replies: formatCount(r.hug_count),
+      id: r.id, title: r.title, boardName: r.board_name, boardMood: r.mood, hugs: formatCount(r.hug_count),
     }));
   });
 }
@@ -502,19 +503,20 @@ export async function getMyFavorites(db: D1Database, identityId: string): Promis
 }
 
 export async function getMyReplies(db: D1Database, identityId: string): Promise<MyThread[]> {
+  // P11-5：带出楼层号——行链接锚到 /t/:id#floor-N，且行 id 不再共用 thread_id（重复 key）
   const { results } = await db.prepare(`
-    SELECT r.id, r.content, r.created_at,
+    SELECT r.id, r.floor, r.content, r.created_at,
       t.id AS thread_id, t.title, t.reply_count, t.views, t.essence,
       b.name AS board_name, b.mood AS board_mood
     FROM replies r JOIN threads t ON t.id = r.thread_id JOIN boards b ON b.id = t.board_id
     WHERE r.identity_id = ? AND r.status='published'
     ORDER BY r.created_at DESC
   `).bind(identityId).all<{
-    id: string; content: string; created_at: string; thread_id: string; title: string;
+    id: string; floor: number; content: string; created_at: string; thread_id: string; title: string;
     reply_count: number; views: number; essence: number; board_name: string; board_mood: Mood;
   }>();
   return results.map((r) => ({
-    id: r.thread_id, title: r.title, boardName: r.board_name, boardMood: r.board_mood,
+    id: r.thread_id, floor: r.floor, title: r.title, boardName: r.board_name, boardMood: r.board_mood,
     repliesViews: `${formatCount(r.reply_count)} / ${formatCount(r.views)}`,
     time: formatRelativeTime(r.created_at), essence: !!r.essence,
   }));

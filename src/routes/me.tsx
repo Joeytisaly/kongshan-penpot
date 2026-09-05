@@ -36,7 +36,7 @@ const TabPanels: FC<{ myThreads: MyThread[]; myReplies: MyThread[]; myFavorites:
         <p class="mine-empty">还没有回应过别人。去树洞里说说话吧。</p>
       ) : (
         myReplies.map((t) => (
-          <a class="mine-row" href={`/t/${t.id}`} key={t.id}>
+          <a class="mine-row" href={`/t/${t.id}${t.floor ? `#floor-${t.floor}` : ""}`} key={`${t.id}-${t.floor}`}>
             <span class="mine-title">{t.title}</span>
             <span class={`mine-board mood-${t.boardMood}`}>{t.boardName}</span>
             <span class="mine-rv">{t.repliesViews}</span>

@@ -4,13 +4,13 @@ import { Layout } from "../components/layout";
 import { EmptyState } from "../components/empty";
 import type { Identity, Thread } from "../lib/types";
 
-export const SearchPage: FC<{ me: Identity; q: string; threads: Thread[]; page?: number; totalPages?: number; unread?: number }> = ({ me, q, threads, page = 1, totalPages = 1, unread }) => (
+export const SearchPage: FC<{ me: Identity; q: string; threads: Thread[]; page?: number; totalPages?: number; total?: number; unread?: number }> = ({ me, q, threads, page = 1, totalPages = 1, total = 0, unread }) => (
   <Layout title={q ? `搜索：${q}` : "搜索"} me={me} unread={unread}>
     <p class="crumb">空山 › 搜索</p>
     <div class="board-head">
       <div>
         <h1 class="board-title">搜索</h1>
-        <p class="board-slogan">{q ? `「${q}」的搜索结果（${threads.length}）` : "输入关键词，找找树洞里的心事。"}</p>
+        <p class="board-slogan">{q ? `「${q}」的搜索结果（共 ${total} 条）` : "输入关键词，找找树洞里的心事。"}</p>
       </div>
     </div>
     <section class="card thread-table">

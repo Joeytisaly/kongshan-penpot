@@ -186,10 +186,10 @@ app.get("/search", async (c) => {
   const identity = c.get("identity");
   const page = Math.max(1, Number(c.req.query("page")) || 1);
   const [res, unread] = await Promise.all([
-    q ? searchThreads(c.env.DB, q, page) : Promise.resolve({ threads: [], page: 1, totalPages: 1 }),
+    q ? searchThreads(c.env.DB, q, page) : Promise.resolve({ threads: [], page: 1, totalPages: 1, total: 0 }),
     getUnreadCount(c.env.DB, identity.id),
   ]);
-  return c.html(<SearchPage me={toDisplay(identity)} q={q} threads={res.threads} page={res.page} totalPages={res.totalPages} unread={unread} />);
+  return c.html(<SearchPage me={toDisplay(identity)} q={q} threads={res.threads} page={res.page} totalPages={res.totalPages} total={res.total} unread={unread} />);
 });
 
 // 精华区（P4-4：导航已有入口，落地列表页）

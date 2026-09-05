@@ -19,6 +19,10 @@ export const navGroups: NavGroup[] = [
   ]},
 ];
 
+/** 版块所属分组名（P11-5：版块页面包屑用，替代写死的「情感区」；未登记 slug 回落「版块」） */
+export const boardGroupName = (slug: string): string =>
+  navGroups.find((g) => g.items.some((i) => i.slug === slug))?.name ?? "版块";
+
 export const services: string[] = ["树洞使用指南", "心理援助热线 12356", "内容与社区规范"];
 
 export const rules: string[] = [

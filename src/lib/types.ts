@@ -75,6 +75,7 @@ export interface MyThread {
   repliesViews: string; // 如 "128 / 2.4万"
   time: string;
   essence: boolean;
+  floor?: number; // 楼层号（仅「我回应的」行有）：用于锚到 /t/:id#floor-N（P11-5）
 }
 
 /** 首页热帖榜条目 */
@@ -83,7 +84,7 @@ export interface HotItem {
   title: string;
   boardName: string;
   boardMood: Mood;
-  replies: string;
+  hugs: string; // 抱抱数展示——榜单按 hug_count 排序（P11-5：原字段名 replies 与展示「N 回复」都是错的）
 }
 
 /** 左栏版块导航分组 */
