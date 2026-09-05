@@ -114,6 +114,16 @@
 - [x] **P8-5 语义与文档对齐**：① /me/reset 兑现「旧身份码作废」——重置时旧 code_hash 改写为 `revoked:`||id 占位（行保留供楼层归属），旧码从此无法登录；其他设备旧 Cookie 不在承诺范围已记入 §2；② §2 字符集描述修正（仅剔 O/I/L，含 0/1）并顺带修正哈希描述（实际为 `SHA-256(码:pepper)` 冒号分隔，非直接拼接）；③ §5 /t/:id 去掉 ?page= 声称，注明全量加载现状；④ §6 显式记录 CSRF 依赖 SameSite=Lax 的设计事实及未来补 Token 的触发条件。门：tsc 零错误 ✓ 2026-09-05。用户侧回归：重置身份后用旧码登录应被拒绝、新码可登录
 - [x] **P8-6 小项**：① 首访直接进 /me 时身份码卡片不显示——中间件懒签发时 `c.set("freshCode")` 暂存，/me 读取顺序 CODE_COOKIE → freshCode；② 搜索 LIKE 的 %/_ 参数侧转义 + `ESCAPE '\'`（用户输入按字面匹配）。暂缓（记录不动）：app.css 3 处硬编码色值——需先改 DESIGN.md 色板再动 CSS，纯装饰低收益。门：tsc 零错误 ✓ 2026-09-05
 
+## P9 体验闭环（接手第三轮：现网缺陷修复 + 交互补全）
+
+> 背景：无 JS 表单架构下，/hug、/favorite、/report 返回 JSON 导致点击后落裸 JSON 页（P1 验收走 API 链路、UI 链路漏验）；楼层「回复」按钮为静态死元素；「只看楼主」是纯文案。本阶段全部对齐设计画板与文案承诺。
+
+- [x] **P9-1 动作端点回跳修复**：/hug、/favorite、/report 由 c.json 改 303 回跳来源页——表单 hidden `return` 字段 + 服务端 safeReturn 校验（须以 / 开头且非 //，防 open redirect）；回跳 query 带动作结果提示条（reported=1 温柔确认 / hugerr、faverr、reporterr 错误文案），thread 页新增 actionNotice 渲染位。门：tsc 零错误 + 本地冒烟（回跳/开关切换/open-redirect 打回/提示条/举报×3 自动隐藏无回归）✓ 2026-09-05。经验：Git Bash MSYS 路径转换会改写 curl 表单里的 `/t/...` 值——测试一律 `MSYS_NO_PATHCONV=1` + URL 编码（与 GBK 教训同类）
+- [x] **P9-2 楼层「回复」按钮落地 + 死代码清理**：静态 span → `#reply` 锚点链接（回复=定位回复框，引用=带 quote 预填，职责区分）；删除无消费的 reply_to 隐藏字段。零后端改动。门：tsc 零错误 ✓ 2026-09-05
+- [x] **P9-3 只看楼主**：getThreadDetail 加 onlyOp 过滤（楼层号保留原值），/t/:id?op=1 消费；meta 拆出「只看楼主/看全部楼层」切换链接（.op-link 最小样式只用 token）。门：tsc 零错误 + 冒烟（普通/op 视图楼层过滤与链接翻转、回复框保留、无回复帖 200、旧死文案清除）✓ 2026-09-05
+- [x] **P9-4 顶栏消息未读红点**：getUnreadCount（COUNT read_at IS NULL，走 idx_notif_owner）+ Layout「消息」徽标（>9 显 9+，.unread-badge 仅用 token 变量）+ 全部 10 个页面路由传参（404/onError 占位不传——豁免路径无徽标属预期）。门：tsc 零错误 + Node UTF-8 冒烟（A 发帖→B 回复→A 首页//me 红点 1→全部已读→0→B 无通知 0；badge 全页扫描 10/10）✓ 2026-09-05。经验补充：新身份 10 分钟冷却会拦自动化发帖测试——Node 脚本内置古诗验证码求解（题库与 captcha.ts 同步）
+- [x] **P9-5 站务置顶/取消置顶**：/mod/pin（`pinned = 1 - pinned`，对齐加精模式）+ 举报队列帖子条目「置顶/取消顶」按钮 + getOpenReports 补 thread_pinned 字段。门：tsc 零错误 + Node 冒烟（举报→队列按钮→toggle→版块页置顶组提前→恢复现场）✓ 2026-09-05
+
 ---
 
 ## 变更记录
@@ -140,4 +150,5 @@
 | 2026-09-05 | 接手深度审查：全量通读源码与文档，确认 2 个数据一致性 bug（收到的抱抱恒为 0、楼层等级冻结）+ 站务登录无限频等加固项，立项 P7（3 切片）与 P8 候选清单 |
 | 2026-09-05 | **P7 收官**：P7-1 收到的抱抱改 hugs 表实时 COUNT；P7-2 楼层等级/首页累计发言改实时口径（UNION 一次取全楼作者发言数，洞务组特例保留）；P7-3 migration 0003 移除 identities 死列 level/hug_received 并联动全部引用（共同根因：无写路径的冗余列）。三片均过 tsc 门。⚠️ 上线顺序：**先 deploy 后 d1 migrations apply**；冒烟清单见 P7 各切片用户侧注记 |
 | 2026-09-05 | **P8 收官**（6 切片均过 tsc 门）：P8-1 站务登录限频+HMAC 签名会话+恒定时间比较（新建 modauth.ts，7 处明文比较收敛）；P8-2 favicon data-URI + /favicon.ico、/robots.txt 豁免签发 + 404/500 占位兜底（复核修正：robots.txt 本是静态资产不经 Worker）；P8-3 /login Set-Cookie 规范为独立响应头；P8-4 migration 0004 补齐 4 设计版块并重排分组 sort（seed 同步，双路径一致）；P8-5 重置身份兑现旧码作废 + ARCHITECTURE 三处对齐（字符集/分页声称/CSRF 记录）；P8-6 首访身份码 freshCode 回退 + 搜索 LIKE 转义。用户侧操作：deploy → migrations apply（0003+0004）→ 回归清单见各切片注记 |
+| 2026-09-05 | **P9 收官**（5 切片均过门，待部署）：P9-1 抱抱/收藏/举报改回跳来源页+结果提示条（修复点按钮落裸 JSON 页的现网缺陷，open-redirect 守卫）；P9-2 楼层回复按钮锚点落地 + reply_to 死字段清理；P9-3 只看楼主视图（?op=1）；P9-4 顶栏消息未读红点全站联动（badge 10/10 页面覆盖）；P9-5 站务置顶 toggle。测试经验沉淀：Git Bash MSYS 路径转换改写表单值 → MSYS_NO_PATHCONV=1 + URL 编码；新身份冷却拦自动化测试 → Node UTF-8 脚本内置古诗求解 |
 | 2026-09-05 | **P7+P8 部署上线**（版本 bcf4405f）并推送 GitHub：本地冒烟全绿（本地 0003/0004 迁移 + wrangler dev 十页/豁免路径 0 Cookie 下发/站务签名会话错码拒对码进/详情页 UNION 等级/搜索 ESCAPE/首访 freshCode）后按「先 deploy 后迁移」顺序上线；远程 0003+0004 迁移成功（PRAGMA 确认 identities 死列已删、boards 9 个含 4 新版块）；线上只读复验（单 Cookie 罐全程一次签发）——15 页 200 + 404 兜底、4 新版块首页渲染、favicon data-URI、楼层等级实时计算含洞务组特例、/me 身份码卡片、安全头三件套，全部通过 |
