@@ -8,7 +8,7 @@ import type { ThreadDetail } from "../db/queries";
 const HEART_ICON = `<svg width="15" height="15" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M8 13.8C4.4 11.4 1.8 9.2 1.8 6.4 1.8 4.3 3.4 2.7 5.4 2.7c1 0 2 .5 2.6 1.3.6-.8 1.6-1.3 2.6-1.3 2 0 3.6 1.6 3.6 3.7 0 2.8-2.6 5-6.2 7.4z" fill="#7A8A80"/></svg>`;
 const BUBBLE_ICON = `<svg width="15" height="15" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M3.2 2.6h9.6c.9 0 1.6.7 1.6 1.6v5.6c0 .9-.7 1.6-1.6 1.6H8.4L5 14.4v-3H3.2c-.9 0-1.6-.7-1.6-1.6V4.2c0-.9.7-1.6 1.6-1.6z" fill="#7A8A80"/></svg>`;
 
-export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boolean; error?: string; actionNotice?: { kind: "warm" | "error"; text: string }; quotePreview?: string }> = ({ me, detail, favorited, error, actionNotice, quotePreview }) => (
+export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boolean; onlyOp?: boolean; error?: string; actionNotice?: { kind: "warm" | "error"; text: string }; quotePreview?: string }> = ({ me, detail, favorited, onlyOp, error, actionNotice, quotePreview }) => (
   <Layout title={detail.title} activeNav={detail.boardName} me={me}>
     <p class="crumb">空山 › {detail.boardName} › {detail.title}</p>
     {error && <div class="notice-error">{error}</div>}
@@ -22,7 +22,10 @@ export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boo
       <span class={`tag mood-bg-${detail.floors[0]?.mood ?? "树洞"}`}>{detail.boardName}</span>
       <h1 class="thread-page-title">{detail.title}</h1>
       <p class="thread-meta">
-        {detail.meta}
+        {detail.meta} ·
+        <a class="op-link" href={onlyOp ? `/t/${detail.id}` : `/t/${detail.id}?op=1`}>
+          {onlyOp ? "看全部楼层" : "只看楼主"}
+        </a> ·
         <form action="/favorite" method="post" class="fav-form">
           <input type="hidden" name="target" value={detail.id} />
           <input type="hidden" name="return" value={`/t/${detail.id}`} />

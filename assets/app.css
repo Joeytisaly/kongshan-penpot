@@ -210,6 +210,8 @@ main.container { max-width: 1312px; margin: 0 auto; padding: 0 0 40px; }
 .thread-head-area .tag { border-radius: 4px; }
 .thread-page-title { font-size: var(--fs-page-title); font-weight: 600; margin: 12px 0 6px; }
 .thread-meta { font-size: var(--fs-sub); color: var(--text-2); margin-bottom: 20px; display: flex; align-items: center; gap: 12px; }
+.op-link { color: var(--primary); }
+.op-link:hover { text-decoration: underline; }
 .fav-form { display: inline; margin: 0; }
 .fav-btn { background: none; border: none; cursor: pointer; font-family: var(--font-body); font-size: var(--fs-sub); color: var(--accent); padding: 0; }
 .fav-btn:hover { text-decoration: underline; }

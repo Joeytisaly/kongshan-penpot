@@ -84,7 +84,9 @@ app.get("/b/:slug", async (c) => {
 
 app.get("/t/:id", async (c) => {
   const identity = c.get("identity");
-  const detail = await getThreadDetail(c.env.DB, c.req.param("id"), identity.id);
+  // 只看楼主（P9-3）：?op=1 仅显示楼主楼层
+  const onlyOp = c.req.query("op") === "1";
+  const detail = await getThreadDetail(c.env.DB, c.req.param("id"), identity.id, { onlyOp });
   if (!detail) return c.notFound();
   const favorited = await isFavorited(c.env.DB, identity.id, c.req.param("id"));
   const error = c.req.query("err") ? "一口气说了好多啦。歇一分钟，再继续说吧。" : undefined;
@@ -108,7 +110,7 @@ app.get("/t/:id", async (c) => {
   }
   // 浏览计数：KV 累积，Cron 每 10 分钟落库
   c.executionCtx.waitUntil(bumpViews(c.env.KV, c.req.param("id")));
-  return c.html(<ThreadPage me={toDisplay(identity)} detail={detail} favorited={favorited} error={error} actionNotice={actionNotice} quotePreview={quotePreview} />);
+  return c.html(<ThreadPage me={toDisplay(identity)} detail={detail} favorited={favorited} onlyOp={onlyOp} error={error} actionNotice={actionNotice} quotePreview={quotePreview} />);
 });
 
 // 收藏 toggle（P9-1：无 JS 表单架构，JSON 退役，303 回跳来源页；失败带 faverr 提示）

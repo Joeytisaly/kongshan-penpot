@@ -163,7 +163,12 @@ async function getAuthorLevels(db: D1Database, threadId: string): Promise<Map<st
   return new Map(results.map((r) => [r.id, r.display_no === 0 ? "洞务" : levelFromPosts(r.speak).level]));
 }
 
-export async function getThreadDetail(db: D1Database, threadId: string, identityId: string): Promise<ThreadDetail | null> {
+export async function getThreadDetail(
+  db: D1Database,
+  threadId: string,
+  identityId: string,
+  opts?: { onlyOp?: boolean },
+): Promise<ThreadDetail | null> {
   const t = await db.prepare(`
     SELECT t.id, t.board_id, t.identity_id, t.title, t.content, t.views, t.reply_count, t.hug_count, t.created_at,
       b.slug AS board_slug, b.name AS board_name, b.mood AS board_mood,
@@ -201,7 +206,8 @@ export async function getThreadDetail(db: D1Database, threadId: string, identity
       canDelete: t.identity_id === identityId && ageMinutes(t.created_at) < 10,
       hugCount: t.hug_count, content: t.content,
     },
-    ...replies.map((r) => ({
+    // 只看楼主（P9-3）：仅楼主楼层，楼层号保留原值
+    ...(opts?.onlyOp ? [] : replies.map((r) => ({
       id: r.id, floorNo: r.floor,
       floorLabel: `${r.floor}楼${r.floor === 2 ? " · 沙发" : r.floor === 3 ? " · 板凳" : ""} · 发表于 ${formatDateTime(r.created_at)}`,
       author: displayAuthor(r.author_display), authorNo: String(r.author_display).padStart(4, "0"),
@@ -209,7 +215,7 @@ export async function getThreadDetail(db: D1Database, threadId: string, identity
       canDelete: r.identity_id === identityId && ageMinutes(r.created_at) < 10,
       hugCount: r.hug_count,
       content: r.content, quote: r.quote ?? undefined,
-    })),
+    }))),
   ];
 
   const [participants, related] = await Promise.all([
@@ -230,7 +236,8 @@ export async function getThreadDetail(db: D1Database, threadId: string, identity
 
   return {
     id: t.id, boardSlug: t.board_slug, boardName: t.board_name, title: t.title,
-    meta: `回复 ${formatCount(t.reply_count)} · 查看 ${formatCount(t.views)} · 只看楼主 · 收藏`,
+    // 只看楼主/收藏由页面层渲染为链接与表单（P9-3），meta 只保留纯计数
+    meta: `回复 ${formatCount(t.reply_count)} · 查看 ${formatCount(t.views)}`,
     // 自伤判定覆盖楼主正文与全部可见楼层（P5-4：回复命中也触发 12356 横幅）
     selfHarm: judgeContent(t.title + t.content) === "self-harm"
       || replies.some((r) => judgeContent(r.content) === "self-harm"),
