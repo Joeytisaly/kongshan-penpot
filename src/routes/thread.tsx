@@ -61,6 +61,13 @@ export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boo
                   <input type="hidden" name="target" value={f.id} />
                   <button type="submit" class="floor-action">举报</button>
                 </form>
+                {f.canDelete && (
+                  <form action="/delete" method="post" class="floor-action-form">
+                    <input type="hidden" name="type" value={f.isOp ? "thread" : "reply"} />
+                    <input type="hidden" name="target" value={f.id} />
+                    <button type="submit" class="floor-action">删除</button>
+                  </form>
+                )}
               </div>
             </div>
           </section>

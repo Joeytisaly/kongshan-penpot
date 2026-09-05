@@ -23,7 +23,7 @@ import { formatCount } from "./lib/format";
 import { levelFromPosts } from "./lib/level";
 import { generateCaptcha, verifyCaptcha } from "./lib/captcha";
 import { ipRateLimit, ipRateRecord, riskCheck, riskRecord } from "./lib/risk";
-import { bumpViews, createReply, createThread, flushViews, toggleFavorite, toggleHug } from "./db/writes";
+import { bumpViews, createReply, createThread, deleteOwnReply, deleteOwnThread, flushViews, toggleFavorite, toggleHug } from "./db/writes";
 import type { Env } from "./types/env";
 
 type AppEnv = {
@@ -76,7 +76,7 @@ app.get("/b/:slug", async (c) => {
 
 app.get("/t/:id", async (c) => {
   const identity = c.get("identity");
-  const detail = await getThreadDetail(c.env.DB, c.req.param("id"));
+  const detail = await getThreadDetail(c.env.DB, c.req.param("id"), identity.id);
   if (!detail) return c.notFound();
   const favorited = await isFavorited(c.env.DB, identity.id, c.req.param("id"));
   const error = c.req.query("err") ? "一口气说了好多啦。歇一分钟，再继续说吧。" : undefined;
@@ -203,6 +203,21 @@ app.post("/report", async (c) => {
     ).bind(targetId).run();
   }
   return c.json({ ok: true, reports: n, hidden: n >= 3 });
+});
+
+// 用户自助删除：10 分钟内收回自己的帖子/楼层（兑现「10 分钟内可删除」文案承诺）
+// 拒绝路径（超窗/非本人/不存在）统一回首页，不暴露原因
+app.post("/delete", async (c) => {
+  const identity = c.get("identity");
+  const body = await c.req.parseBody();
+  const target = String(body.target ?? "");
+  if (!target) return c.redirect("/");
+  if (body.type === "reply") {
+    const r = await deleteOwnReply(c.env.DB, identity.id, target);
+    return c.redirect(r.ok ? `/t/${r.threadId}` : "/");
+  }
+  await deleteOwnThread(c.env.DB, identity.id, target);
+  return c.redirect("/");
 });
 
 // 站务：MOD_PASS 密码登录 + 待审/举报队列

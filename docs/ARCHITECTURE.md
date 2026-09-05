@@ -132,7 +132,8 @@ CREATE TABLE favorites (
 | `/t/:id/reply` | POST | 回复（楼层自增，限流） | 03 |
 | `/hug` | POST | 抱抱（幂等 toggle） | 02/03 |
 | `/favorite` | POST | 收藏（幂等 toggle） | 03/06 |
-| `/report` | POST | 举报（达 3 次自动隐藏） | 03 |
+| `/report` | POST | 举报（达 3 次自动隐藏；IP-HMAC 5 次/小时限流） | 03 |
+| `/delete` | POST | 用户自助删除（10 分钟内自己的帖/楼层，软删 status=deleted） | 03 |
 | `/notifications` | GET/POST | 消息通知 / 全部已读 | 05 |
 | `/me` | GET | 我的树洞（含身份码展示） | 06 |
 | `/me/reset` | POST | 重置身份 | 06 |

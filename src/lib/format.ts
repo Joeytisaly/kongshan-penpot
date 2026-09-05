@@ -35,6 +35,12 @@ export function formatDateTime(dt: string): string {
   return t.toDateString() === now.toDateString() ? `今天 ${hm}` : `${t.getMonth() + 1}-${String(t.getDate()).padStart(2, "0")} ${hm}`;
 }
 
+/** 年龄（分钟）：SQLite datetime 格式按 UTC 解析。
+ *  解析失败返回 NaN——保守方向由调用方定（验证码场景视为新身份触发验证，删除场景视为超窗拒绝） */
+export function ageMinutes(dt: string): number {
+  return (Date.now() - new Date(dt.replace(" ", "T") + "Z").getTime()) / 60_000;
+}
+
 /** 作者展示：display_no=0 为洞务组，其余补零成 4 位 */
 export function displayAuthor(displayNo: number): string {
   return displayNo === 0 ? "洞务组" : `洞友 #${String(displayNo).padStart(4, "0")}`;

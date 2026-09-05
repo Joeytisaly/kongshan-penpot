@@ -43,6 +43,7 @@ export interface Floor {
   level: string; // 如 "树洞 · 一叶"
   mood: Mood;
   isOp: boolean; // 是否楼主
+  canDelete?: boolean; // 是否当前洞友发布且在 10 分钟窗口内（渲染「删除」按钮的唯一依据，服务端算好）
   content: string;
   quote?: string; // 引用块文案
   hugCount: number;

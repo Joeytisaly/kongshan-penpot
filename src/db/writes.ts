@@ -1,7 +1,12 @@
 // 写路径 —— 发帖 / 回复（楼层自增）/ 抱抱（幂等）/ 通知 / 举报
 // 依赖地图：writes.ts ↔ index.tsx（POST 路由）+ 表单页面；改动需跑通三链路实测（AGENTS.md §2）
 
-import { displayAuthor } from "../lib/format";
+import { displayAuthor, ageMinutes } from "../lib/format";
+
+/** 当前 UTC 时间，与 D1 datetime('now') 同构（SQLite 格式）。
+ *  必须——seed/DB DEFAULT/ageMinutes/formatRelativeTime 全按此格式解析，
+ *  写 ISO 格式会导致新帖时间显示为空、删除窗口判定失效（P4-2 验收发现的存量 bug） */
+const sqliteNow = () => new Date().toISOString().slice(0, 19).replace("T", " ");
 import { judgeContent } from "../lib/words";
 
 /** 内容判定后写入帖子：pending 进待审 / block 拒绝 / self-harm 正常发布 */
@@ -51,7 +56,7 @@ export async function createThread(
   if (!board) return { ok: false, error: "这个版块还没有开放。" };
 
   const id = crypto.randomUUID();
-  const now = new Date().toISOString();
+  const now = sqliteNow();
   const inserted = await insertThread(db, id, board.id, identityId, title, content, now);
   if (!inserted.ok) return inserted;
   await db.prepare("UPDATE identities SET post_count = post_count + 1, last_seen_at = datetime('now') WHERE id = ?").bind(identityId).run();
@@ -82,7 +87,7 @@ export async function createReply(
   ).bind(threadId).first<{ next_floor: number }>();
   const floor = floorRow?.next_floor ?? 2;
   const id = crypto.randomUUID();
-  const now = new Date().toISOString();
+  const now = sqliteNow();
 
   const res = await db.batch([
     db.prepare(
@@ -120,7 +125,7 @@ export async function toggleHug(
   ).bind(targetType, targetId, identityId).first<{ id: string }>();
   const hugged = !existing;
 
-  const now = new Date().toISOString();
+  const now = sqliteNow();
   const counter = targetType === "thread"
     ? `UPDATE threads SET hug_count = hug_count ${existing ? "-" : "+"} 1 WHERE id = ?`
     : `UPDATE replies SET hug_count = hug_count ${existing ? "-" : "+"} 1 WHERE id = ?`;
@@ -171,7 +176,7 @@ export async function toggleFavorite(
     "SELECT id FROM favorites WHERE identity_id = ? AND thread_id = ?",
   ).bind(identityId, threadId).first<{ id: string }>();
 
-  const now = new Date().toISOString();
+  const now = sqliteNow();
   const res = await db.batch([
     existing
       ? db.prepare("DELETE FROM favorites WHERE id = ?").bind(existing.id)
@@ -201,4 +206,49 @@ export async function flushViews(kv: KVNamespace, db: D1Database): Promise<numbe
   });
   await Promise.all(batch);
   return list.keys.length;
+}
+
+/* ========== 用户自助删除（10 分钟内收回自己的帖子/楼层，兑现发帖页文案承诺） ========== */
+
+const DELETE_WINDOW_MIN = 10;
+
+/** 删自己的帖子：软删 status='deleted'（与站务删除同语义），整楼随之不可见；楼层与回复数据保留 DB 可由洞务恢复 */
+export async function deleteOwnThread(
+  db: D1Database,
+  identityId: string,
+  threadId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const t = await db.prepare(
+    "SELECT identity_id, created_at FROM threads WHERE id = ? AND status='published'",
+  ).bind(threadId).first<{ identity_id: string; created_at: string }>();
+  // 统一拒绝文案：不区分不存在/非本人/超窗，不向探测者暴露存在性
+  if (!t || t.identity_id !== identityId || ageMinutes(t.created_at) >= DELETE_WINDOW_MIN) {
+    return { ok: false, error: "这个树洞已经收不回来了。" };
+  }
+  const res = await db.prepare("UPDATE threads SET status='deleted' WHERE id = ?").bind(threadId).run();
+  if (!res.success) return { ok: false, error: "没有收回来，再试一次。" };
+  return { ok: true };
+}
+
+/** 删自己的楼层：软删 + 帖子回复数-1（MAX 防负数）；楼层号不回收（BBS 惯例） */
+export async function deleteOwnReply(
+  db: D1Database,
+  identityId: string,
+  replyId: string,
+): Promise<{ ok: true; threadId: string } | { ok: false; error: string }> {
+  const r = await db.prepare(`
+    SELECT r.identity_id, r.created_at, r.thread_id, t.status AS thread_status
+    FROM replies r JOIN threads t ON t.id = r.thread_id
+    WHERE r.id = ? AND r.status='published'
+  `).bind(replyId).first<{ identity_id: string; created_at: string; thread_id: string; thread_status: string }>();
+  if (!r || r.identity_id !== identityId
+    || ageMinutes(r.created_at) >= DELETE_WINDOW_MIN || r.thread_status !== "published") {
+    return { ok: false, error: "这句话已经收不回来了。" };
+  }
+  const res = await db.batch([
+    db.prepare("UPDATE replies SET status='deleted' WHERE id = ?").bind(replyId),
+    db.prepare("UPDATE threads SET reply_count = MAX(reply_count - 1, 0) WHERE id = ?").bind(r.thread_id),
+  ]);
+  if (res.some((x) => !x.success)) return { ok: false, error: "没有收回来，再试一次。" };
+  return { ok: true, threadId: r.thread_id };
 }

@@ -2,7 +2,7 @@
 // 依赖地图：queries.ts ↔ types.ts（契约）+ format.ts（展示格式化）；页面层只消费返回值
 // P0 的 mock.ts 退役后，本文件是页面唯一数据来源
 import type { Board, Floor, HotItem, Mood, MyThread, Notice, Thread } from "../lib/types";
-import { displayAuthor, formatCount, formatDateTime, formatRelativeTime } from "../lib/format";
+import { displayAuthor, ageMinutes, formatCount, formatDateTime, formatRelativeTime } from "../lib/format";
 import { judgeContent } from "../lib/words";
 import { cached } from "../lib/cache";
 
@@ -144,9 +144,9 @@ export interface ThreadDetail {
   related: Array<[string, string]>;
 }
 
-export async function getThreadDetail(db: D1Database, threadId: string): Promise<ThreadDetail | null> {
+export async function getThreadDetail(db: D1Database, threadId: string, identityId: string): Promise<ThreadDetail | null> {
   const t = await db.prepare(`
-    SELECT t.id, t.board_id, t.title, t.content, t.views, t.reply_count, t.hug_count, t.created_at,
+    SELECT t.id, t.board_id, t.identity_id, t.title, t.content, t.views, t.reply_count, t.hug_count, t.created_at,
       b.slug AS board_slug, b.name AS board_name, b.mood AS board_mood,
       i.display_no AS author_display, i.level AS author_level
     FROM threads t
@@ -154,19 +154,19 @@ export async function getThreadDetail(db: D1Database, threadId: string): Promise
     JOIN identities i ON i.id=t.identity_id
     WHERE t.id=? AND t.status='published'
   `).bind(threadId).first<{
-    id: string; board_id: string; title: string; content: string; views: number; reply_count: number;
+    id: string; board_id: string; identity_id: string; title: string; content: string; views: number; reply_count: number;
     hug_count: number; created_at: string; board_slug: string; board_name: string; board_mood: Mood;
     author_display: number; author_level: string;
   }>();
   if (!t) return null;
 
   const { results: replies } = await db.prepare(`
-    SELECT r.id, r.floor, r.content, r.quote, r.hug_count, r.created_at,
+    SELECT r.id, r.floor, r.identity_id, r.content, r.quote, r.hug_count, r.created_at,
       i.display_no AS author_display, i.level AS author_level
     FROM replies r JOIN identities i ON i.id=r.identity_id
     WHERE r.thread_id=? AND r.status='published' ORDER BY r.floor
   `).bind(threadId).all<{
-    id: string; floor: number; content: string; quote: string | null; hug_count: number;
+    id: string; floor: number; identity_id: string; content: string; quote: string | null; hug_count: number;
     created_at: string; author_display: number; author_level: string;
   }>();
 
@@ -175,13 +175,17 @@ export async function getThreadDetail(db: D1Database, threadId: string): Promise
     {
       id: t.id, floorNo: 1, floorLabel: `1楼 · 发表于 ${formatDateTime(t.created_at)}`,
       author: displayAuthor(t.author_display), authorNo, level: t.author_level,
-      mood: t.board_mood, isOp: true, hugCount: t.hug_count, content: t.content,
+      mood: t.board_mood, isOp: true,
+      canDelete: t.identity_id === identityId && ageMinutes(t.created_at) < 10,
+      hugCount: t.hug_count, content: t.content,
     },
     ...replies.map((r) => ({
       id: r.id, floorNo: r.floor,
       floorLabel: `${r.floor}楼${r.floor === 2 ? " · 沙发" : r.floor === 3 ? " · 板凳" : ""} · 发表于 ${formatDateTime(r.created_at)}`,
       author: displayAuthor(r.author_display), authorNo: String(r.author_display).padStart(4, "0"),
-      level: r.author_level, mood: t.board_mood, isOp: false, hugCount: r.hug_count,
+      level: r.author_level, mood: t.board_mood, isOp: false,
+      canDelete: r.identity_id === identityId && ageMinutes(r.created_at) < 10,
+      hugCount: r.hug_count,
       content: r.content, quote: r.quote ?? undefined,
     })),
   ];

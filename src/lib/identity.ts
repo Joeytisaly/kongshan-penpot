@@ -1,6 +1,7 @@
 // 匿名身份码系统 —— 空山的身份核心
 // 安全红线（AGENTS.md §6）：服务端只存 SHA-256(码+pepper)，原始码仅用户可见、丢失不可找回
 // 设计详见 docs/ARCHITECTURE.md §2
+import { ageMinutes } from "./format";
 
 /** 身份码字符集：Crockford Base32 去混淆字符（去掉 0/O/1/I/L） */
 const CODE_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -63,15 +64,10 @@ export const CODE_RE = /^KS-[0-9A-HJKMNP-TV-Z]{4}(-[0-9A-HJKMNP-TV-Z]{4}){3}$/;
 /** 身份码明文 Cookie（HttpOnly，仅服务端可读，供 /me 页展示给用户抄写保存） */
 export const CODE_COOKIE = "ks_code";
 
-/** 身份年龄（分钟）：兼容 ISO（懒签发内存态）与 SQLite（DB 态）两种 created_at 格式。
- *  解析失败视为 0（新身份）——宁可让真人多答一道验证题，不放机器过防线。 */
+/** 身份年龄（分钟）：验证码场景解析失败视为 0（新身份）——宁可让真人多答一道题，不放机器过防线 */
 export function identityAgeMinutes(row: Pick<IdentityRow, "created_at">): number {
-  const raw = row.created_at;
-  const t = raw.includes("T")
-    ? new Date(raw).getTime()
-    : new Date(raw.replace(" ", "T") + "Z").getTime();
-  if (Number.isNaN(t)) return 0;
-  return (Date.now() - t) / 60_000;
+  const n = ageMinutes(row.created_at);
+  return Number.isNaN(n) ? 0 : n;
 }
 
 /** DB 行 → 页面展示契约（UI 只依赖 types.ts 的 Identity，数据层形态在此转换） */

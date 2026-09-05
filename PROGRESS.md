@@ -71,6 +71,7 @@
 ## P4 闭环修复与补全
 
 - [x] **P4-1 风控闭环**：修复新身份验证码绕过（懒签发 created_at 与 D1 格式统一 + identityAgeMinutes 双格式兼容解析，解析失败视为新身份）+ 举报 IP-HMAC 限流 5 次/小时 + 登录限频 5 次/小时（兑现 ARCHITECTURE.md §2 承诺）（门：tsc 零错误 + 真机三测点授权豁免） ✓ 2026-09-05
+- [x] **P4-2 用户自助删除**：POST /delete（10 分钟内自己的帖/楼层，软删 status=deleted 与站务同语义、楼层号不回收、reply_count-1）+ Floor.canDelete 契约（服务端算好归属∧时间窗）+ format.ageMinutes 通用解析（解析失败保守方向由调用方定）。验收中发现并根治写路径 created_at ISO/SQLite 双格式存量 bug（新帖时间显示为空、删除窗口失效）→ sqliteNow 统一（门：tsc 零错误 + 本地端到端验收 25/25 通过，含 P4-1 四项风控回归） ✓ 2026-09-05
 
 ---
 
@@ -87,3 +88,4 @@
 | 2026-09-04 | S21–S25 完成，**P3 收官**：KV 缓存（热帖榜/版块统计 60s）、robots+安全头、书法体自托管子集（2.7MB→299KB）、EmptyState 统一组件、D1 Time Travel 备份文档、域名实测 5/5。自定义域名 www.kongshan.ccwu.cc 确认绑定（API 核查）；发现 Cloudflare 托管 robots.txt 前置注入（不影响 noindex 兜底） |
 | 2026-09-04 | git 仓库初始化 + v0.1.0 基线提交（P0–P3 全量进入版本控制；.dev.vars/.wrangler/node_modules/.zcode 已 gitignore） |
 | 2026-09-05 | P4-1 完成：验证码绕过修复（created_at 格式根因 + identityAgeMinutes 双格式解析防线）、举报/登录 IP-HMAC 限流 5 次/小时；tsc 零错误过门 |
+| 2026-09-05 | P4-2 完成：用户自助删除（10 分钟窗口、软删、canDelete 契约）；根治写路径 created_at 双格式存量 bug（新帖时间显示为空、删除窗口失效）；本地端到端验收 25/25（含 P4-1 四项风控回归） |
