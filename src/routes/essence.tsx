@@ -4,8 +4,8 @@ import { Layout } from "../components/layout";
 import { EmptyState } from "../components/empty";
 import type { Identity, Thread } from "../lib/types";
 
-export const EssencePage: FC<{ me: Identity; threads: Thread[] }> = ({ me, threads }) => (
-  <Layout title="精华区" activeNav="精华区" me={me}>
+export const EssencePage: FC<{ me: Identity; threads: Thread[]; unread?: number }> = ({ me, threads, unread }) => (
+  <Layout title="精华区" activeNav="精华区" me={me} unread={unread}>
     <p class="crumb">空山 › 精华区</p>
     <div class="board-head">
       <div>

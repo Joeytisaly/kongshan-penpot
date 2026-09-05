@@ -15,10 +15,11 @@ const NAV_ITEMS: Array<[string, string]> = [
 
 const SEARCH_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.8" cy="6.8" r="4.4" stroke="currentColor" stroke-width="1.6"/><path d="M10.3 10.3L14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`;
 
-export const Layout: FC<PropsWithChildren<{ title: string; activeNav?: string; me: Identity }>> = ({
+export const Layout: FC<PropsWithChildren<{ title: string; activeNav?: string; me: Identity; unread?: number }>> = ({
   title,
   activeNav,
   me,
+  unread,
   children,
 }) => (
   <html lang="zh-CN">
@@ -46,7 +47,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; activeNav?: string; m
           <span class="avatar">洞</span>
           <span class="topbar-user">洞友 #{me.displayNo}</span>
           <a class="topbar-link" href="/me">我的树洞</a>
-          <a class="topbar-link" href="/notifications">消息</a>
+          <a class="topbar-link" href="/notifications">消息{unread ? <span class="unread-badge">{unread > 9 ? "9+" : unread}</span> : null}</a>
           <form action="/logout" method="post" class="topbar-form">
             <button type="submit" class="topbar-link topbar-btn">退出</button>
           </form>

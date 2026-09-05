@@ -341,6 +341,14 @@ export async function getHotThreads(kv: KVNamespace, db: D1Database): Promise<Ho
 
 /* ========== 消息通知 05 ========== */
 
+/** 顶栏未读数（P9-4）：read_at IS NULL 走 idx_notif_owner 前缀 */
+export async function getUnreadCount(db: D1Database, identityId: string): Promise<number> {
+  const r = await db.prepare(
+    "SELECT COUNT(*) AS n FROM notifications WHERE identity_id = ? AND read_at IS NULL",
+  ).bind(identityId).first<{ n: number }>();
+  return r?.n ?? 0;
+}
+
 export async function getNotices(db: D1Database, identityId: string, type?: "reply" | "hug" | "system"): Promise<Notice[]> {
   const { results } = type
     ? await db.prepare(`

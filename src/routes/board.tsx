@@ -12,8 +12,9 @@ export const BoardPage: FC<{
   hot: Array<[string, string]>;
   page: number;
   totalPages: number;
-}> = ({ board, me, threads, boardStats, hot, page, totalPages }) => (
-  <Layout title={board.name} activeNav={board.name} me={me}>
+  unread?: number;
+}> = ({ board, me, threads, boardStats, hot, page, totalPages, unread }) => (
+  <Layout title={board.name} activeNav={board.name} me={me} unread={unread}>
     <p class="crumb">空山 › 情感区 › {board.name}</p>
     <div class="board-head">
       <div>

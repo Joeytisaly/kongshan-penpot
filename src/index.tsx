@@ -16,7 +16,7 @@ import { SearchPage } from "./routes/search";
 import { EssencePage } from "./routes/essence";
 import {
   getBoardBySlug, getBoardStats, getBoards, getCommunityStats, getEssenceThreads, getHotThreads,
-  getMyFavorites, getMyReplies, getMyStats, getMyThreads, getMyTracks, getNotices,
+  getMyFavorites, getMyReplies, getMyStats, getMyThreads, getMyTracks, getNotices, getUnreadCount,
   getOpenReports, getPendingThreads, getThreadDetail, getThreads, getWeekStats, isFavorited,
   searchThreads,
 } from "./db/queries";
@@ -49,13 +49,14 @@ const PAGE_SIZE = 10;
 app.get("/", async (c) => {
   const db = c.env.DB;
   const identity = c.get("identity");
-  const [boards, hots, stats, tracks, mystats] = await Promise.all([
+  const [boards, hots, stats, tracks, mystats, unread] = await Promise.all([
     getBoards(c.env.KV, db), getHotThreads(c.env.KV, db), getCommunityStats(db), getMyTracks(db, identity.id), getMyStats(db, identity.id),
+    getUnreadCount(db, identity.id),
   ]);
   const speakTotal = mystats.posts + mystats.replies;
   const level = levelFromPosts(speakTotal);
   // 累计发言与等级同口径（发帖+回应，实时统计）——post_count 只计发帖且含历史口径差（P7-2）
-  return c.html(<HomePage me={{ ...toDisplay(identity), totalPosts: speakTotal }} boards={boards} hots={hots} stats={stats} tracks={tracks} level={level} />);
+  return c.html(<HomePage me={{ ...toDisplay(identity), totalPosts: speakTotal }} boards={boards} hots={hots} stats={stats} tracks={tracks} level={level} unread={unread} />);
 });
 
 app.get("/b/:slug", async (c) => {
@@ -64,7 +65,7 @@ app.get("/b/:slug", async (c) => {
   const board = await getBoardBySlug(db, slug);
   if (!board) return c.notFound();
   const page = Math.max(1, Number(c.req.query("page")) || 1);
-  const [{ threads, totalPages }, boardStats, hot] = await Promise.all([
+  const [{ threads, totalPages }, boardStats, hot, unread] = await Promise.all([
     getThreads(db, slug, page, PAGE_SIZE),
     getBoardStats(db, slug),
     db.prepare(`
@@ -73,12 +74,13 @@ app.get("/b/:slug", async (c) => {
     `).bind(slug).all<{ title: string; hug_count: number }>().then((r) =>
       r.results.map((x) => [x.title, x.hug_count] as [string, number]),
     ),
+    getUnreadCount(db, c.get("identity").id),
   ]);
   const boardFull = (await getBoards(c.env.KV, db)).find((b) => b.slug === slug) ?? board;
   const hotStr = hot.map(([t, n]) => [t, formatCount(n)] as [string, string]);
   return c.html(<BoardPage
     board={boardFull} me={toDisplay(c.get("identity"))} threads={threads}
-    boardStats={boardStats} hot={hotStr} page={page} totalPages={totalPages}
+    boardStats={boardStats} hot={hotStr} page={page} totalPages={totalPages} unread={unread}
   />);
 });
 
@@ -89,6 +91,7 @@ app.get("/t/:id", async (c) => {
   const detail = await getThreadDetail(c.env.DB, c.req.param("id"), identity.id, { onlyOp });
   if (!detail) return c.notFound();
   const favorited = await isFavorited(c.env.DB, identity.id, c.req.param("id"));
+  const unread = await getUnreadCount(c.env.DB, identity.id);
   const error = c.req.query("err") ? "一口气说了好多啦。歇一分钟，再继续说吧。" : undefined;
   // P9-1：动作端点回跳提示条（举报确认 / 抱抱、收藏、举报失败）
   let actionNotice: { kind: "warm" | "error"; text: string } | undefined;
@@ -110,7 +113,7 @@ app.get("/t/:id", async (c) => {
   }
   // 浏览计数：KV 累积，Cron 每 10 分钟落库
   c.executionCtx.waitUntil(bumpViews(c.env.KV, c.req.param("id")));
-  return c.html(<ThreadPage me={toDisplay(identity)} detail={detail} favorited={favorited} onlyOp={onlyOp} error={error} actionNotice={actionNotice} quotePreview={quotePreview} />);
+  return c.html(<ThreadPage me={toDisplay(identity)} detail={detail} favorited={favorited} onlyOp={onlyOp} unread={unread} error={error} actionNotice={actionNotice} quotePreview={quotePreview} />);
 });
 
 // 收藏 toggle（P9-1：无 JS 表单架构，JSON 退役，303 回跳来源页；失败带 faverr 提示）
@@ -122,17 +125,23 @@ app.post("/favorite", async (c) => {
 });
 
 app.get("/new", async (c) => {
-  const boards = await getBoards(c.env.KV, c.env.DB);
+  const identity = c.get("identity");
+  const [boards, unread] = await Promise.all([
+    getBoards(c.env.KV, c.env.DB), getUnreadCount(c.env.DB, identity.id),
+  ]);
   // 风控触发：新身份 10 分钟内首发，需先答古诗验证码（默认免验证）
-  const captcha = identityAgeMinutes(c.get("identity")) < 10 ? await generateCaptcha(c.env.KV) : undefined;
-  return c.html(<NewThreadPage me={toDisplay(c.get("identity"))} boards={boards} captcha={captcha} />);
+  const captcha = identityAgeMinutes(identity) < 10 ? await generateCaptcha(c.env.KV) : undefined;
+  return c.html(<NewThreadPage me={toDisplay(identity)} boards={boards} captcha={captcha} unread={unread} />);
 });
 
 app.get("/notifications", async (c) => {
+  const identity = c.get("identity");
   const t = c.req.query("type");
   const type = t === "reply" || t === "hug" || t === "system" ? t : undefined;
-  const notices = await getNotices(c.env.DB, c.get("identity").id, type);
-  return c.html(<NotificationsPage me={toDisplay(c.get("identity"))} notices={notices} activeType={type ?? null} />);
+  const [notices, unread] = await Promise.all([
+    getNotices(c.env.DB, identity.id, type), getUnreadCount(c.env.DB, identity.id),
+  ]);
+  return c.html(<NotificationsPage me={toDisplay(identity)} notices={notices} activeType={type ?? null} unread={unread} />);
 });
 
 // 全部已读
@@ -145,12 +154,13 @@ app.post("/notifications/read", async (c) => {
 
 app.get("/me", async (c) => {
   const identity = c.get("identity");
-  const [myThreads, stats, week, myReplies, myFavorites] = await Promise.all([
+  const [myThreads, stats, week, myReplies, myFavorites, unread] = await Promise.all([
     getMyThreads(c.env.DB, identity.id),
     getMyStats(c.env.DB, identity.id),
     getWeekStats(c.env.DB, identity.id),
     getMyReplies(c.env.DB, identity.id),
     getMyFavorites(c.env.DB, identity.id),
+    getUnreadCount(c.env.DB, identity.id),
   ]);
   const level = levelFromPosts(stats.posts + stats.replies);
   // 首访直接进 /me 时（懒签发当次请求）请求头里还没有 CODE_COOKIE，回退读中间件暂存的 freshCode（P8-6）
@@ -159,25 +169,34 @@ app.get("/me", async (c) => {
     identityCode={getCookie(c, CODE_COOKIE) ?? c.get("freshCode")}
     myThreads={myThreads} stats={{
       posts: formatCount(stats.posts), replies: formatCount(stats.replies), hugs: formatCount(stats.hugs),
-    }} week={week} myReplies={myReplies} myFavorites={myFavorites} level={level}
+    }} week={week} myReplies={myReplies} myFavorites={myFavorites} level={level} unread={unread}
   />);
 });
 
 // 搜索（P4-4：顶栏搜索框落地）
 app.get("/search", async (c) => {
   const q = (c.req.query("q") ?? "").trim().slice(0, 30);
-  const threads = q ? await searchThreads(c.env.DB, q) : [];
-  return c.html(<SearchPage me={toDisplay(c.get("identity"))} q={q} threads={threads} />);
+  const identity = c.get("identity");
+  const [threads, unread] = await Promise.all([
+    q ? searchThreads(c.env.DB, q) : Promise.resolve([]), getUnreadCount(c.env.DB, identity.id),
+  ]);
+  return c.html(<SearchPage me={toDisplay(identity)} q={q} threads={threads} unread={unread} />);
 });
 
 // 精华区（P4-4：导航已有入口，落地列表页）
 app.get("/essence", async (c) => {
-  const threads = await getEssenceThreads(c.env.DB);
-  return c.html(<EssencePage me={toDisplay(c.get("identity"))} threads={threads} />);
+  const identity = c.get("identity");
+  const [threads, unread] = await Promise.all([
+    getEssenceThreads(c.env.DB), getUnreadCount(c.env.DB, identity.id),
+  ]);
+  return c.html(<EssencePage me={toDisplay(identity)} threads={threads} unread={unread} />);
 });
 
 // 身份码登录：GET 表单 / POST 验证（POST 限频：每 IP-HMAC 5 次/小时，防爆破——ARCHITECTURE.md §2）
-app.get("/login", (c) => c.html(<LoginPage me={toDisplay(c.get("identity"))} />));
+app.get("/login", async (c) => {
+  const unread = await getUnreadCount(c.env.DB, c.get("identity").id);
+  return c.html(<LoginPage me={toDisplay(c.get("identity"))} unread={unread} />);
+});
 app.post("/login", async (c) => {
   const ip = c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for") ?? null;
   const limit = await ipRateLimit(c.env.KV, ip, "login", 5, 3600);
@@ -271,10 +290,12 @@ app.post("/delete", async (c) => {
 
 // 站务：MOD_PASS 密码登录（P8-1：限频 + 签名会话令牌，原明文 cookie 方案退役）+ 待审/举报队列
 app.get("/mod", async (c) => {
-  const pending = await getPendingThreads(c.env.DB);
-  const reports = await getOpenReports(c.env.DB);
+  const [pending, reports, unread] = await Promise.all([
+    getPendingThreads(c.env.DB), getOpenReports(c.env.DB),
+    getUnreadCount(c.env.DB, c.get("identity").id),
+  ]);
   const authed = await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS);
-  return c.html(<ModPage me={toDisplay(c.get("identity"))} authed={authed} pending={pending} reports={reports} error={c.req.query("err") ? "密码不对哦。" : undefined} />);
+  return c.html(<ModPage me={toDisplay(c.get("identity"))} authed={authed} pending={pending} reports={reports} unread={unread} error={c.req.query("err") ? "密码不对哦。" : undefined} />);
 });
 app.post("/mod/login", async (c) => {
   // 限频同 /login 语义：不论成败每 IP-HMAC 计数，5 次/小时防爆破

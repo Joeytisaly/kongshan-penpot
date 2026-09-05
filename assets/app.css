@@ -48,6 +48,7 @@ main.container { max-width: 1312px; margin: 0 auto; padding: 0 0 40px; }
 }
 .topbar-user { font-weight: 500; color: var(--text); }
 .topbar-link { color: var(--text-2); }
+.unread-badge { display: inline-block; min-width: 15px; height: 15px; line-height: 15px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: var(--card); font-size: var(--fs-aux); text-align: center; margin-left: 4px; vertical-align: 1px; }
 
 /* ===== 版块导航条（绿色） ===== */
 .navbar { height: 44px; background: var(--primary); display: flex; align-items: center; padding: 0 64px; }

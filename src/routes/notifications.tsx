@@ -15,8 +15,8 @@ const KIND_META: Record<Notice["kind"], { icon: string; bg: string }> = {
 
 const TABS: Array<[string, string | null]> = [["全部", null], ["回复我的", "reply"], ["收到的抱抱", "hug"], ["站务通知", "system"]];
 
-export const NotificationsPage: FC<{ me: Identity; notices: Notice[]; activeType?: string | null }> = ({ me, notices, activeType = null }) => (
-  <Layout title="消息通知" me={me}>
+export const NotificationsPage: FC<{ me: Identity; notices: Notice[]; activeType?: string | null; unread?: number }> = ({ me, notices, activeType = null, unread }) => (
+  <Layout title="消息通知" me={me} unread={unread}>
     <p class="crumb">空山 › 消息通知</p>
     <div class="notice-wrap">
       <div class="notice-head">

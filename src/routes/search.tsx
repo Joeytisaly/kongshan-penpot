@@ -4,8 +4,8 @@ import { Layout } from "../components/layout";
 import { EmptyState } from "../components/empty";
 import type { Identity, Thread } from "../lib/types";
 
-export const SearchPage: FC<{ me: Identity; q: string; threads: Thread[] }> = ({ me, q, threads }) => (
-  <Layout title={q ? `搜索：${q}` : "搜索"} me={me}>
+export const SearchPage: FC<{ me: Identity; q: string; threads: Thread[]; unread?: number }> = ({ me, q, threads, unread }) => (
+  <Layout title={q ? `搜索：${q}` : "搜索"} me={me} unread={unread}>
     <p class="crumb">空山 › 搜索</p>
     <div class="board-head">
       <div>

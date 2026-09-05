@@ -3,8 +3,8 @@ import type { FC } from "hono/jsx";
 import { Layout } from "../components/layout";
 import type { Identity } from "../lib/types";
 
-export const LoginPage: FC<{ me: Identity; error?: string; hint?: string }> = ({ me, error, hint }) => (
-  <Layout title="身份码登录" me={me}>
+export const LoginPage: FC<{ me: Identity; unread?: number; error?: string; hint?: string }> = ({ me, unread, error, hint }) => (
+  <Layout title="身份码登录" me={me} unread={unread}>
     <p class="crumb">空山 › 身份码登录</p>
     <div class="login-wrap">
       <section class="card compose-card">

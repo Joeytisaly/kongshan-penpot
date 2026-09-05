@@ -25,9 +25,10 @@ export const ModPage: FC<{
   authed: boolean;
   pending: ModItem[];
   reports: ReportItem[];
+  unread?: number;
   error?: string;
-}> = ({ me, authed, pending, reports, error }) => (
-  <Layout title="站务" activeNav="站务" me={me}>
+}> = ({ me, authed, pending, reports, unread, error }) => (
+  <Layout title="站务" activeNav="站务" me={me} unread={unread}>
     <p class="crumb">空山 › 站务</p>
     {!authed ? (
       <section class="card compose-card" style="max-width:480px;margin:40px auto">

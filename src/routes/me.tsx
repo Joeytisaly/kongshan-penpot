@@ -73,8 +73,9 @@ export const MePage: FC<{
   stats: { posts: string; replies: string; hugs: string };
   week: Array<[string, string]>;
   level: LevelInfo;
-}> = ({ me, identityCode, myThreads, myReplies, myFavorites, stats, week, level }) => (
-  <Layout title="我的树洞" me={me}>
+  unread?: number;
+}> = ({ me, identityCode, myThreads, myReplies, myFavorites, stats, week, level, unread }) => (
+  <Layout title="我的树洞" me={me} unread={unread}>
     <p class="crumb">空山 › 我的树洞</p>
     <div class="me-grid">
       <div class="me-main">

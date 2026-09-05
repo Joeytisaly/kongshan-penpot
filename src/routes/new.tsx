@@ -6,8 +6,8 @@ import type { Board, Identity } from "../lib/types";
 const HEART_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M8 13.8C4.4 11.4 1.8 9.2 1.8 6.4 1.8 4.3 3.4 2.7 5.4 2.7c1 0 2 .5 2.6 1.3.6-.8 1.6-1.3 2.6-1.3 2 0 3.6 1.6 3.6 3.7 0 2.8-2.6 5-6.2 7.4z" fill="#C77F35"/></svg>`;
 const SHIELD_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M8 1.6l5.2 2v4c0 3.3-2.1 5.7-5.2 7.6C4.9 13.3 2.8 10.9 2.8 7.6v-4l5.2-2z" fill="#2F6B4F"/></svg>`;
 
-export const NewThreadPage: FC<{ me: Identity; boards: Board[]; error?: string; notice?: string; captcha?: { id: string; prompt: string } }> = ({ me, boards, error, notice, captcha }) => (
-  <Layout title="发新洞" me={me}>
+export const NewThreadPage: FC<{ me: Identity; boards: Board[]; unread?: number; error?: string; notice?: string; captcha?: { id: string; prompt: string } }> = ({ me, boards, unread, error, notice, captcha }) => (
+  <Layout title="发新洞" me={me} unread={unread}>
     <p class="crumb">空山 › 发新洞</p>
     <div class="compose-wrap">
       <section class="card compose-card">
