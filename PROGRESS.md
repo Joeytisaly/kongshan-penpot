@@ -103,14 +103,16 @@
 - [x] **P7-2 等级与累计发言实时化**：楼层作者等级由 `identities.level`（签发后冻结在一叶）改为发言数（published 帖+回）经 `levelFromPosts` 实时计算；全楼参与作者一次 UNION 查询出口径（避免逐行相关子查询），洞务组（display_no=0）特例「洞务」保留 seed 语义；首页身份卡「累计发言」改用实时 posts+replies，与旁边等级口径一致（兑现 P5-3 语义）。楼层页/首页 JSX 零改动（Floor.level、Identity.totalPosts 契约形状不变）。门：tsc 零错误 ✓ 2026-09-05（用户侧冒烟：详情页多回帖作者的等级随发言数变化、seed 演示帖作者等级回落为真实值——演示身份各只有 1 帖，显示一叶属预期）
 - [x] **P7-3 身份表死列清理**：migration 0003 DROP `identities.level` / `identities.hug_received`（P7-1/2 后零读者；死列即本阶段两 bug 的共同根因）——联动 IdentityRow / toDisplay / 契约 Identity.level（grep 证实无消费者，tsc 验证）/ 懒签发 INSERT / reset INSERT / seed.sql / normalize-seed.sql / ARCHITECTURE §4。门：tsc 零错误 + 死列引用残留扫描干净 ✓ 2026-09-05。**⚠️ 上线顺序：先部署代码、后应用迁移**（新代码兼容新旧两种 schema；旧代码懒签发 INSERT 带列名，列消失后会失败）
 
-## P8 候选清单（接手审查发现，未排期）
+## P8 加固与收尾（接手审查发现）
 
-- [ ] **P8-1 站务登录加固**：/mod/login 无任何限频（对比 /login 有 IP-HMAC 5 次/小时）→ MOD_PASS 可被爆破；mod_auth cookie 值=明文 MOD_PASS（cookie 泄漏即密钥泄漏），应改随机会话 token + 恒定时间比较
-- [ ] **P8-2 懒签发豁免**：robots.txt / 资产 404 等请求也会走身份中间件签发身份（爬虫/curl 无 Cookie，每请求插一行 identities，表持续膨胀）；assets/ 缺 favicon.ico（浏览器默认请求落到 Worker 404）
-- [ ] **P8-3 /login Set-Cookie 规范化**：raw `c.header("Set-Cookie", [...].join(", "))` 拼两条（RFC 不允许合并，现碰巧可用）→ 改 setCookie 两次或 append（identity middleware 已是正确写法）
-- [ ] **P8-4 死链版块**：static.ts 导航列 9 版块、seed 仅 5 版块 → 首页左栏 4 个链接 404（分手治愈/校园点滴/租房互助/树洞故事会）；补 seed 或收导航（宁缺毋假）
-- [ ] **P8-5 文档对齐**：ARCHITECTURE §2 身份码字符集「剔除 0/O/1/I/L」与实际不符（CODE_ALPHABET 仅剔 O/I/L，含 0/1，生成与正则相互一致）；/t/:id 路由表声称 ?page= 分页但实现全量加载楼层（决策：补分页或改文档）；/me/reset 注释「旧身份码作废」未实现（旧码仍可登录，泄露场景下承诺失效）；全站无 CSRF token、依赖 SameSite=Lax 的事实显式记入 ARCHITECTURE
-- [ ] 小项：app.css 3 处硬编码色值（#C77F35/#fff/rgba 白，违反「只用 tokens 变量」）；搜索 LIKE 未转义 %/_（体验）；首次直接访问 /me 因懒签发当次请求读不到 CODE_COOKIE，身份码卡片不显示
+> 切片顺序：P8-1 安全加固 → P8-2 签发豁免 → P8-3 规范化 → P8-4 版块补齐 → P8-5 语义/文档对齐 → P8-6 小项。每片过 tsc 门后更新本表再进下一片。
+
+- [-] **P8-1 站务登录加固**：新建 `src/lib/modauth.ts`——① /mod/login 加 IP-HMAC 限频 5 次/小时（同 /login 语义：不论成败计数）；② mod_auth cookie 从「值=明文 MOD_PASS」改为无状态签名令牌 `expiry.HMAC(expiry, MOD_PASS)`（避免 KV 最终一致导致偶发登录失效），7 处 `getCookie === MOD_PASS` 明文比较全部收敛到 `verifyModSession()`；③ 口令与会话校验一律恒定时间比较（SHA-256 摘要逐字节异或）。联动：全部 /mod/* 处置动作回归。旧明文 cookie 部署后自然失效，洞务需重新登录（24h 会话，可接受）
+- [ ] **P8-2 签发豁免 + favicon**：复核修正——robots.txt 本就是静态资产（不经 Worker，无需处理）；真正灌表向量是 /favicon.ico（无资产文件 → Worker 404 → 每次懒签发）与扫描器 404。方案：Layout `<head>` 加 data-URI SVG favicon（现代浏览器不再请求 /favicon.ico）+ 身份中间件对 /favicon.ico、/robots.txt 豁免签发 + notFound/onError 兜底容忍身份缺失（占位渲染，防豁免路径落入 404 时崩溃）。残留：爬虫抓 HTML 页仍会签发（路由白名单式签发属后续观察项）
+- [ ] **P8-3 /login Set-Cookie 规范化**：raw `c.header("Set-Cookie", join(", "))` 拼两条（RFC 不允许合并）→ 复用 identity middleware 的 `cookieOpts` 两次 `setCookie`
+- [ ] **P8-4 补齐设计稿版块**：migration 0004——UPDATE 既有 5 版块 sort + INSERT 设计导航里的 4 个版块（分手治愈/校园点滴/租房互助/树洞故事会，描述按 DESIGN.md 语气补写，展示层空状态已有设计）；seed.sql 版块 sort 同步为分组顺序（保证「先迁移后种子」与「先种子后迁移」两条初始化路径结果一致）。已知残留：新版块名/图标字不在书法体 woff2 子集内，按 font stack 回退楷体（重新子集化需原始字体文件，用户侧处理，见 DESIGN.md S24）
+- [ ] **P8-5 语义与文档对齐**：① /me/reset 兑现「旧身份码作废」（code_hash 改写为 `revoked:`||id 占位，行保留供楼层归属；其他设备旧 Cookie 不在承诺范围，记入文档）；② ARCHITECTURE §2 身份码字符集描述修正（实际仅剔 O/I/L，含 0/1，生成与正则一致）；③ §5 /t/:id 去掉 ?page= 分页声称（现全量加载，千楼级再补分页）；④ §6 显式记录 CSRF 防护依赖 SameSite=Lax 的事实
+- [ ] **P8-6 小项**：① 首访直接进 /me 时身份码卡片不显示（懒签发当次请求读不到 CODE_COOKIE）→ 中间件懒签发时 `c.set("freshCode")`，/me 回退读取；② 搜索 LIKE 未转义 %/_ → 参数侧转义 + `ESCAPE '\'`。暂缓（记录不动）：app.css 3 处硬编码色值——需先改 DESIGN.md 色板再动 CSS，纯装饰低收益
 
 ---
 
