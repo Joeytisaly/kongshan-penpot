@@ -63,12 +63,12 @@ CREATE TABLE identities (
   id TEXT PRIMARY KEY,
   code_hash TEXT UNIQUE NOT NULL,      -- SHA-256(身份码+pepper)
   display_no INTEGER NOT NULL,          -- 洞友 #xxxx
-  level TEXT DEFAULT '一叶',
-  post_count INTEGER DEFAULT 0,
-  hug_received INTEGER DEFAULT 0,
+  post_count INTEGER DEFAULT 0,         -- 发帖计数（createThread 维护）
   created_at TEXT DEFAULT (datetime('now')),
   last_seen_at TEXT
 );
+-- 0003 已移除 level / hug_received 死列（P7）：无写路径维护的冗余列会读到「永远不对的数字」；
+-- 树洞等级与「收到的抱抱」一律由真实表实时计算（等级阈值唯一事实来源 src/lib/level.ts）。
 
 CREATE TABLE threads (
   id TEXT PRIMARY KEY, board_id TEXT NOT NULL REFERENCES boards(id),

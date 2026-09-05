@@ -100,8 +100,8 @@
 > 修复策略：一律改为真实表实时驱动（延续 P5-1「数字必须可验证」原则），页面契约零改动，死列在 P7-3 统一清理。
 
 - [x] **P7-1 抱抱统计实时化**：`getMyStats.hugs` 由 `identities.hug_received`（从未被写路径维护，真实用户恒为 0）改为 hugs 表按 published 帖/楼作者实时 COUNT——与同函数 posts/replies 的 published 口径一致。消费方（/me 资料卡、首页足迹）走既有契约字段零改动。门：tsc 零错误 ✓ 2026-09-05（用户侧冒烟待部署后：收过抱抱的账号 /me「收到的抱抱」> 0）
-- [-] **P7-2 等级与累计发言实时化**：楼层作者等级由 `identities.level`（签发后冻结在一叶）改为发言数（published 帖+回，单次查询覆盖全楼参与作者）经 `levelFromPosts` 实时计算，洞务组（display_no=0）特例「洞务」；首页身份卡「累计发言」改用实时 posts+replies 口径，与旁边等级口径一致（兑现 P5-3 语义）。门：tsc 零错误
-- [ ] **P7-3 身份表死列清理**：migration 0003 DROP `identities.level` / `identities.hug_received`（P7-1/2 后零读者；死列即本阶段两 bug 的共同根因）——联动 IdentityRow / toDisplay / 懒签发 INSERT / reset INSERT / seed.sql / normalize-seed.sql / ARCHITECTURE §4。**⚠️ 上线顺序：先部署代码、后应用迁移**（新代码兼容新旧两种 schema，旧代码不兼容新 schema——懒签发 INSERT 带列名会因列消失而失败）。门：tsc 零错误；用户侧：先 deploy 再 `wrangler d1 migrations apply kongshan-db-prod --remote`
+- [x] **P7-2 等级与累计发言实时化**：楼层作者等级由 `identities.level`（签发后冻结在一叶）改为发言数（published 帖+回）经 `levelFromPosts` 实时计算；全楼参与作者一次 UNION 查询出口径（避免逐行相关子查询），洞务组（display_no=0）特例「洞务」保留 seed 语义；首页身份卡「累计发言」改用实时 posts+replies，与旁边等级口径一致（兑现 P5-3 语义）。楼层页/首页 JSX 零改动（Floor.level、Identity.totalPosts 契约形状不变）。门：tsc 零错误 ✓ 2026-09-05（用户侧冒烟：详情页多回帖作者的等级随发言数变化、seed 演示帖作者等级回落为真实值——演示身份各只有 1 帖，显示一叶属预期）
+- [x] **P7-3 身份表死列清理**：migration 0003 DROP `identities.level` / `identities.hug_received`（P7-1/2 后零读者；死列即本阶段两 bug 的共同根因）——联动 IdentityRow / toDisplay / 契约 Identity.level（grep 证实无消费者，tsc 验证）/ 懒签发 INSERT / reset INSERT / seed.sql / normalize-seed.sql / ARCHITECTURE §4。门：tsc 零错误 + 死列引用残留扫描干净 ✓ 2026-09-05。**⚠️ 上线顺序：先部署代码、后应用迁移**（新代码兼容新旧两种 schema；旧代码懒签发 INSERT 带列名，列消失后会失败）
 
 ## P8 候选清单（接手审查发现，未排期）
 
@@ -135,3 +135,5 @@
 | 2026-09-05 | P5 收官：P5-1 种子计数自洽（线上 views 594,850→9,051，楼层/抱抱计数与真实表一致）；P5-2/3 去硬编码假数据 + 身份文案对齐；P5-4 楼层原子生成（并发实测唯一）+ 楼层抱抱通知 + 回复自伤横幅 + 统计口径「发言洞友」；端到端验收 25/25 |
 | 2026-09-05 | **P5 部署上线**（版本 ad0e09f7）并推送 GitHub：线上复验品牌语/发言洞友/累计发言/今日新洞/无 1,286 与 3,412 残留/安全头，全部通过（只读验证） |
 | 2026-09-05 | **P6 部署上线**（版本 7dfb4093）并推送 GitHub：线上 app.css 三档断点（1080/880/560）与桌面规则并存确认，页面抽查 200；手机排版待用户真机验收 |
+| 2026-09-05 | 接手深度审查：全量通读源码与文档，确认 2 个数据一致性 bug（收到的抱抱恒为 0、楼层等级冻结）+ 站务登录无限频等加固项，立项 P7（3 切片）与 P8 候选清单 |
+| 2026-09-05 | **P7 收官**：P7-1 收到的抱抱改 hugs 表实时 COUNT；P7-2 楼层等级/首页累计发言改实时口径（UNION 一次取全楼作者发言数，洞务组特例保留）；P7-3 migration 0003 移除 identities 死列 level/hug_received 并联动全部引用（共同根因：无写路径的冗余列）。三片均过 tsc 门。⚠️ 上线顺序：**先 deploy 后 d1 migrations apply**；冒烟清单见 P7 各切片用户侧注记 |
