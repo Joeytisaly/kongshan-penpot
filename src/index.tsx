@@ -242,12 +242,60 @@ app.post("/mod/approve", async (c) => {
   await c.env.DB.prepare("UPDATE threads SET status='published' WHERE id=? AND status='pending'").bind(String(body.id ?? "")).run();
   return c.redirect("/mod");
 });
+// 站务处置：隐藏（可逆暂隐）/ 恢复 / 删除（终态）；处置后自动关闭该目标全部未决举报
+app.post("/mod/hide", async (c) => {
+  if (getCookie(c, MOD_COOKIE) !== c.env.MOD_PASS) return c.redirect("/mod");
+  const body = await c.req.parseBody();
+  const type = String(body.type) === "reply" ? "reply" : "thread";
+  await c.env.DB.prepare(
+    type === "reply"
+      ? "UPDATE replies SET status='hidden' WHERE id=? AND status='published'"
+      : "UPDATE threads SET status='hidden' WHERE id=? AND status='published'",
+  ).bind(String(body.id ?? "")).run();
+  await c.env.DB.prepare(
+    "UPDATE reports SET status='resolved' WHERE target_type=? AND target_id=? AND status='open'",
+  ).bind(type, String(body.id ?? "")).run();
+  return c.redirect("/mod");
+});
+
+app.post("/mod/restore", async (c) => {
+  if (getCookie(c, MOD_COOKIE) !== c.env.MOD_PASS) return c.redirect("/mod");
+  const body = await c.req.parseBody();
+  const type = String(body.type) === "reply" ? "reply" : "thread";
+  // 仅 hidden 可恢复（deleted 是终态）
+  await c.env.DB.prepare(
+    type === "reply"
+      ? "UPDATE replies SET status='published' WHERE id=? AND status='hidden'"
+      : "UPDATE threads SET status='published' WHERE id=? AND status='hidden'",
+  ).bind(String(body.id ?? "")).run();
+  await c.env.DB.prepare(
+    "UPDATE reports SET status='resolved' WHERE target_type=? AND target_id=? AND status='open'",
+  ).bind(type, String(body.id ?? "")).run();
+  return c.redirect("/mod");
+});
+
 app.post("/mod/delete", async (c) => {
   const body = await c.req.parseBody();
   if (getCookie(c, MOD_COOKIE) !== c.env.MOD_PASS) return c.redirect("/mod");
   const id = String(body.id ?? "");
-  await c.env.DB.prepare("UPDATE threads SET status='deleted' WHERE id=?").bind(id).run();
-  await c.env.DB.prepare("UPDATE reports SET status='resolved' WHERE target_type='thread' AND target_id=?").bind(id).run();
+  const type = String(body.type) === "reply" ? "reply" : "thread";
+  if (type === "reply") {
+    // 防重：仅 published|hidden 首次转 deleted 时回收回复数（hidden 期间未减过）
+    const row = await c.env.DB.prepare("SELECT status, thread_id FROM replies WHERE id=?")
+      .bind(id).first<{ status: string; thread_id: string }>();
+    if (row && row.status !== "deleted") {
+      const res = await c.env.DB.batch([
+        c.env.DB.prepare("UPDATE replies SET status='deleted' WHERE id=?").bind(id),
+        c.env.DB.prepare("UPDATE threads SET reply_count = MAX(reply_count - 1, 0) WHERE id=?").bind(row.thread_id),
+      ]);
+      if (res.some((r) => !r.success)) return c.redirect("/mod");
+    }
+  } else {
+    await c.env.DB.prepare("UPDATE threads SET status='deleted' WHERE id=?").bind(id).run();
+  }
+  await c.env.DB.prepare(
+    "UPDATE reports SET status='resolved' WHERE target_type=? AND target_id=?",
+  ).bind(type, id).run();
   return c.redirect("/mod");
 });
 app.post("/mod/report-done", async (c) => {

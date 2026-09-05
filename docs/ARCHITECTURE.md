@@ -139,7 +139,7 @@ CREATE TABLE favorites (
 | `/me/reset` | POST | 重置身份 | 06 |
 | `/login` | GET/POST | 身份码登录 | — |
 | `/captcha` | GET | 古诗验证码（内嵌发帖表单，无独立路由） | — |
-| `/mod` | GET/POST | 站务（MOD_PASS 保护：待审/举报队列） | — |
+| `/mod` | GET/POST | 站务（MOD_PASS 保护：待审队列 + 举报队列，支持隐藏/恢复/删除处置，处置自动关闭未决举报） | — |
 
 ## 6. 非功能要求
 
