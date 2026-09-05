@@ -114,3 +114,35 @@ export async function ipRateRecord(kv: KVNamespace, ip: string | null, scope: st
   const n = (Number(await kv.get(K_IP_SCOPE(scope, h))) || 0) + 1;
   await kv.put(K_IP_SCOPE(scope, h), String(n), { expirationTtl: windowSec });
 }
+
+/* ========== 每身份动作限流（抱抱/收藏等轻量写，P10-3：脚本可刷写库与通知） ========== */
+
+const ACT_LIMIT = 10; // 每身份 1 分钟 10 次动作
+const ACT_WINDOW = 60; // 秒
+const K_ACTS = (id: string) => `risk:acts:${id}`;
+
+/** 动作频率检查：与回复限流同构（时间戳列表） */
+export async function actCheck(kv: KVNamespace, identityId: string): Promise<RiskCheck> {
+  const list = (await kv.get(K_ACTS(identityId)))?.split(",").map(Number).filter(Boolean) ?? [];
+  const cutoff = Date.now() - ACT_WINDOW * 1000;
+  if (list.filter((t) => t > cutoff).length >= ACT_LIMIT) {
+    return { ok: false, reason: "动作有点快啦，歇一歇再互动吧。" };
+  }
+  return { ok: true };
+}
+
+/** 动作记账：attempt-based（不论成败都计数），TTL = 3 倍窗口 */
+export async function actRecord(kv: KVNamespace, identityId: string): Promise<void> {
+  const list = (await kv.get(K_ACTS(identityId)))?.split(",").map(Number).filter(Boolean) ?? [];
+  list.push(Date.now());
+  await kv.put(K_ACTS(identityId), list.slice(-20).join(","), { expirationTtl: ACT_WINDOW * 3 });
+}
+
+/** 抱抱通知防骚扰（P10-3）：同一洞友反复抱/取消同一目标，1 小时内只通知一次。
+ *  返回 true 表示本次允许通知并已占用窗口。 */
+export async function hugNotifyOnce(kv: KVNamespace, actorId: string, targetId: string): Promise<boolean> {
+  const key = `notif:hug:${actorId}:${targetId}`;
+  if (await kv.get(key)) return false;
+  await kv.put(key, "1", { expirationTtl: 3600 });
+  return true;
+}

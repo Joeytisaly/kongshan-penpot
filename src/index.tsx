@@ -27,7 +27,7 @@ import { displayAuthor, formatCount } from "./lib/format";
 import { levelFromPosts } from "./lib/level";
 import type { Identity } from "./lib/types";
 import { generateCaptcha, verifyCaptcha } from "./lib/captcha";
-import { ipRateLimit, ipRateRecord, riskCheck, riskRecord } from "./lib/risk";
+import { ipRateLimit, ipRateRecord, riskCheck, riskRecord, actCheck, actRecord } from "./lib/risk";
 import { MOD_COOKIE, createModSession, timingSafeEqualStr, verifyModSession } from "./lib/modauth";
 import { bumpViews, createReply, createThread, deleteOwnReply, deleteOwnThread, flushViews, toggleFavorite, toggleHug } from "./db/writes";
 import type { Env } from "./types/env";
@@ -99,6 +99,7 @@ app.get("/t/:id", async (c) => {
   else if (c.req.query("hugerr")) actionNotice = { kind: "error", text: "抱抱没有送到，再试一次。" };
   else if (c.req.query("faverr")) actionNotice = { kind: "error", text: "收藏没有成功，再试一次。" };
   else if (c.req.query("reporterr")) actionNotice = { kind: "error", text: "操作有点频繁啦，休息一下再试试。" };
+  else if (c.req.query("lim")) actionNotice = { kind: "error", text: "动作有点快啦，歇一歇再互动吧。" };
   // 引用预填（P4-4）：按楼层/帖子 id 读内容，生成引用文本；传 id 不传文本，不接受用户提供的原文回显
   const quoteId = c.req.query("quote");
   let quotePreview: string | undefined;
@@ -116,11 +117,14 @@ app.get("/t/:id", async (c) => {
   return c.html(<ThreadPage me={toDisplay(identity)} detail={detail} favorited={favorited} onlyOp={onlyOp} unread={unread} error={error} actionNotice={actionNotice} quotePreview={quotePreview} />);
 });
 
-// 收藏 toggle（P9-1：无 JS 表单架构，JSON 退役，303 回跳来源页；失败带 faverr 提示）
+// 收藏 toggle（P9-1：回跳来源页；P10-3：动作限流）
 app.post("/favorite", async (c) => {
+  const identity = c.get("identity");
   const body = await c.req.parseBody();
-  const result = await toggleFavorite(c.env.DB, c.get("identity").id, String(body.target ?? ""));
   const back = safeReturn(body.return);
+  if (!(await actCheck(c.env.KV, identity.id)).ok) return c.redirect(withQuery(back, "lim=1"));
+  const result = await toggleFavorite(c.env.DB, identity.id, String(body.target ?? ""));
+  await actRecord(c.env.KV, identity.id);
   return c.redirect(result.ok ? back : withQuery(back, "faverr=1"));
 });
 
@@ -449,12 +453,15 @@ app.post("/t/:id/reply", async (c) => {
   return c.redirect(`/t/${threadId}${result.ok ? `#floor-${result.floor}` : ""}`);
 });
 
-// 抱抱 toggle（P9-1：回跳来源页；失败带 hugerr 提示）
+// 抱抱 toggle（P9-1：回跳来源页；P10-3：动作限流 + 通知防骚扰在 writes 内）
 app.post("/hug", async (c) => {
+  const identity = c.get("identity");
   const body = await c.req.parseBody();
   const type = body.type === "reply" ? "reply" : "thread";
-  const result = await toggleHug(c.env.DB, c.get("identity").id, type, String(body.target ?? ""));
   const back = safeReturn(body.return);
+  if (!(await actCheck(c.env.KV, identity.id)).ok) return c.redirect(withQuery(back, "lim=1"));
+  const result = await toggleHug(c.env.KV, c.env.DB, identity.id, type, String(body.target ?? ""));
+  await actRecord(c.env.KV, identity.id);
   return c.redirect(result.ok ? back : withQuery(back, "hugerr=1"));
 });
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ipHmac, ipRateLimit, ipRateRecord, riskCheck, riskRecord } from "./risk";
+import { actCheck, actRecord, hugNotifyOnce, ipHmac, ipRateLimit, ipRateRecord, riskCheck, riskRecord } from "./risk";
 import { kvStub } from "./testutil";
 
 afterEach(() => vi.useRealTimers());
@@ -95,5 +95,43 @@ describe("通用 IP 限流（举报/登录）", () => {
     const kv = kvStub();
     await ipRateRecord(kv, "9.9.9.9", "login", 3600);
     expect((await ipRateLimit(kv, "9.9.9.9", "report", 5, 3600)).ok).toBe(true);
+  });
+});
+
+describe("动作限流（抱抱/收藏，P10-3）", () => {
+  it("1 分钟 10 次内放行，第 11 次被拦", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-05T12:00:00Z"));
+    const kv = kvStub();
+    for (let i = 0; i < 10; i++) {
+      expect((await actCheck(kv, "id-act")).ok).toBe(true);
+      await actRecord(kv, "id-act");
+    }
+    const blocked = await actCheck(kv, "id-act");
+    expect(blocked.ok).toBe(false);
+    expect(blocked.reason).toContain("歇一歇");
+    advance(61);
+    expect((await actCheck(kv, "id-act")).ok).toBe(true);
+  });
+  it("不同身份互不影响", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-05T12:00:00Z"));
+    const kv = kvStub();
+    for (let i = 0; i < 10; i++) await actRecord(kv, "id-act");
+    expect((await actCheck(kv, "id-other")).ok).toBe(true);
+  });
+});
+
+describe("抱抱通知防骚扰（hugNotifyOnce）", () => {
+  it("同 actor+target 1 小时内只放行一次", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-05T12:00:00Z"));
+    const kv = kvStub();
+    expect(await hugNotifyOnce(kv, "actor", "thread:t1")).toBe(true);
+    expect(await hugNotifyOnce(kv, "actor", "thread:t1")).toBe(false);
+    expect(await hugNotifyOnce(kv, "actor", "thread:t2")).toBe(true);  // 不同目标不受影响
+    expect(await hugNotifyOnce(kv, "actor2", "thread:t1")).toBe(true); // 不同人不受影响
+    advance(3601);
+    expect(await hugNotifyOnce(kv, "actor", "thread:t1")).toBe(true);  // 窗口过后可再通知
   });
 });

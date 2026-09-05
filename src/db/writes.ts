@@ -2,6 +2,7 @@
 // 依赖地图：writes.ts ↔ index.tsx（POST 路由）+ 表单页面；改动需跑通三链路实测（AGENTS.md §2）
 
 import { displayAuthor, ageMinutes } from "../lib/format";
+import { hugNotifyOnce } from "../lib/risk";
 
 /** 当前 UTC 时间，与 D1 datetime('now') 同构（SQLite 格式）。
  *  必须——seed/DB DEFAULT/ageMinutes/formatRelativeTime 全按此格式解析，
@@ -112,8 +113,10 @@ export async function createReply(
   return { ok: true, floor };
 }
 
-/** 抱抱：幂等（唯一约束），已抱过则取消（toggle） */
+/** 抱抱：幂等（唯一约束），已抱过则取消（toggle）。
+ *  kv 用于通知防骚扰（P10-3）：同一洞友 1 小时内反复抱同一目标只通知一次 */
 export async function toggleHug(
+  kv: KVNamespace,
   db: D1Database,
   identityId: string,
   targetType: "thread" | "reply",
@@ -145,7 +148,8 @@ export async function toggleHug(
   ).bind(targetId).first<{ hug_count: number }>();
 
   // 抱抱产生通知（本人抱自己不通知；取消抱抱不通知）：帖子通知楼主，楼层通知楼层作者（P5-4 补齐）
-  if (hugged) {
+  // 同一洞友 1 小时内反复抱同一目标只通知一次（P10-3 防骚扰）
+  if (hugged && (await hugNotifyOnce(kv, identityId, `${targetType}:${targetId}`))) {
     const display = await db.prepare("SELECT display_no FROM identities WHERE id=?").bind(identityId).first<{ display_no: number }>();
     if (targetType === "thread") {
       const [owner, th] = await Promise.all([
