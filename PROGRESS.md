@@ -153,6 +153,15 @@
 
 ---
 
+## P12 接手第五轮：使用者角色审查修复（身份动线 / 防刷补口 / 互动补全 / 移动与无障碍）
+
+> 来源：2026-09-05 十二类使用者角色走查（新访客/倾诉者/回应者/找回者/后悔者/危机用户/举报者/被骚扰者/洞务/移动端/无障碍/恶意用户）。
+> 纪律同 P11：每片过门 = tsc 零错误 + npm test 全绿 + wrangler dev 本地冒烟；开工前过依赖地图，联动同片完成；上线顺序敏感处标注。
+
+- [x] **P12-1 身份动线闭环**：① 顶栏加「找回身份」链接（/login 此前全站零入口——丢 Cookie 用户必须手输 URL，审查发现 #3）；② 首帖引导——POST /new 成功后检测该身份 published 帖数==1，redirect 带 ?first=1，详情页提示条引导去「我的树洞」抄写身份码（审查发现 #1：身份码发现缺失是最主要的身份流失点）；③ 站务会话可退出——新增 POST /mod/logout（deleteCookie 带 path=/mod，此前 24h 会话无 UI 登出、共享设备风险，审查发现 #14），/logout 顺手双保险清 mod cookie。联动：layout.tsx / index.tsx（logout、/new 首帖检测、thread first 提示）/ mod.tsx（退出按钮）/ app.css（mod-head）/ ARCHITECTURE §5。门：tsc 零错误 + 80 用例 + Node UTF-8 冒烟 6 断言全过（顶栏链接、古诗验证码全流程首帖 redirect ?first=1、详情页引导提示条、mod 登录含退出按钮、logout 下发 mod_auth=; Max-Age=0; Path=/mod、删 cookie 后回登录态）。记录的设计边界：无状态签名令牌的「登出」=浏览器删 cookie，已拷贝的令牌值在过期前仍可重放（与 JWT 同理，MVP 接受；未来可加令牌版本号或 KV 黑名单） ✓ 2026-09-05
+
+---
+
 ## 变更记录
 
 | 日期 | 内容 |

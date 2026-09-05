@@ -155,6 +155,7 @@ CREATE INDEX idx_fav_owner ON favorites(identity_id, created_at DESC);
 | `/login` | GET/POST | 身份码登录（IP-HMAC 5 次/小时限频） | — |
 | `/captcha` | GET | 古诗验证码（内嵌发帖表单，无独立路由） | — |
 | `/mod` | GET/POST | 站务（MOD_PASS 保护：待审队列 + 举报队列，支持隐藏/恢复/删除/加精处置，处置自动关闭未决举报） | — |
+| `/mod/logout` | POST | 站务退出（清除 mod_auth 会话 cookie，P12-1） | — |
 | `/mod/delete-confirm` | GET | 站务删除确认页（终态删除前展示内容摘要，P11-7） | — |
 
 ## 6. 非功能要求

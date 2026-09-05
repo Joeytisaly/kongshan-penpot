@@ -94,7 +94,8 @@ app.get("/t/:id", async (c) => {
   const error = c.req.query("err") ? "一口气说了好多啦。歇一分钟，再继续说吧。" : undefined;
   // P9-1：动作端点回跳提示条（举报确认 / 抱抱、收藏、举报失败）
   let actionNotice: { kind: "warm" | "error"; text: string } | undefined;
-  if (c.req.query("reported")) actionNotice = { kind: "warm", text: "谢谢你的守护，洞务组会看到这条举报的。" };
+  if (c.req.query("first")) actionNotice = { kind: "warm", text: "这是你的第一个树洞。去「我的树洞」抄写身份码吧——凭它可以随时找回匿名说话的自己。" };
+  else if (c.req.query("reported")) actionNotice = { kind: "warm", text: "谢谢你的守护，洞务组会看到这条举报的。" };
   else if (c.req.query("hugerr")) actionNotice = { kind: "error", text: "抱抱没有送到，再试一次。" };
   else if (c.req.query("faverr")) actionNotice = { kind: "error", text: "收藏没有成功，再试一次。" };
   else if (c.req.query("reporterr")) actionNotice = { kind: "error", text: "操作有点频繁啦，休息一下再试试。" };
@@ -224,11 +225,20 @@ app.post("/login", async (c) => {
   return c.redirect("/me");
 });
 
-// 退出：仅清 Cookie，身份码仍可找回
+// 退出：仅清 Cookie，身份码仍可找回。
+// P12-1：mod_auth 的 path=/mod，删除必须带同 path 才能命中——此前站务会话 24h 内
+// 无任何 UI 登出（十二角色审查 #14）
 app.post("/logout", (c) => {
   deleteCookie(c, COOKIE_NAME);
   deleteCookie(c, CODE_COOKIE);
+  deleteCookie(c, MOD_COOKIE, { path: "/mod" });
   return c.redirect("/");
+});
+
+// 站务退出（P12-1）：只清站务会话，留在 /mod 页回到登录态。登出无需鉴权
+app.post("/mod/logout", (c) => {
+  deleteCookie(c, MOD_COOKIE, { path: "/mod" });
+  return c.redirect("/mod");
 });
 
 // 重置身份确认页（P11-7：no-JS 两步式确认——重置不可逆，旧身份码永久作废）
@@ -439,7 +449,12 @@ app.post("/new", async (c) => {
   if (result.pending) {
     return rerender({ notice: "心事已经放好，正在请洞务组过目。等它过审，就会出现在树洞里。" });
   }
-  return c.redirect(`/t/${result.id}`);
+  // 首帖引导（P12-1）：该身份第一篇 published 帖发出后，提示去抄写身份码——
+  // 身份码发现缺失是最主要的身份流失点（十二角色审查 #1）
+  const first = (await c.env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM threads WHERE identity_id=? AND status='published'",
+  ).bind(identity.id).first<{ n: number }>())?.n === 1;
+  return c.redirect(`/t/${result.id}${first ? "?first=1" : ""}`);
 });
 
 app.post("/t/:id/reply", async (c) => {

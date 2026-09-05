@@ -51,6 +51,8 @@ export const Layout: FC<PropsWithChildren<{ title: string; activeNav?: string; m
           <span class="topbar-user">洞友 #{me.displayNo}</span>
           <a class="topbar-link" href="/me">我的树洞</a>
           <a class="topbar-link" href="/notifications">消息{unread ? <span class="unread-badge">{unread > 9 ? "9+" : unread}</span> : null}</a>
+          {/* P12-1：/login 此前全站零入口——丢 Cookie 的用户无法通过 UI 找回身份 */}
+          <a class="topbar-link" href="/login">找回身份</a>
           <form action="/logout" method="post" class="topbar-form">
             <button type="submit" class="topbar-link topbar-btn">退出</button>
           </form>

@@ -46,7 +46,14 @@ export const ModPage: FC<{
         </form>
       </section>
     ) : (
-      <div class="mod-grid">
+      <div>
+        {/* P12-1：站务会话退出（此前 24h 内无 UI 登出） */}
+        <div class="mod-head">
+          <form action="/mod/logout" method="post">
+            <button type="submit" class="btn btn-ghost">退出站务</button>
+          </form>
+        </div>
+        <div class="mod-grid">
         <section class="card list-card">
           <header class="list-head">
             <h2 class="card-title">待审心事（{pending.length}）</h2>
@@ -134,6 +141,7 @@ export const ModPage: FC<{
             })
           )}
         </section>
+        </div>
       </div>
     )}
   </Layout>
