@@ -1,5 +1,6 @@
 // 空山 · Hono 入口（S12：页面数据全部来自 D1 查询层）
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { HomePage } from "./routes/home";
 import { BoardPage } from "./routes/board";
@@ -21,9 +22,10 @@ import {
 } from "./db/queries";
 import { identityMiddleware, COOKIE_NAME } from "./middleware/identity";
 import { securityMiddleware } from "./middleware/security";
-import { CODE_COOKIE, CODE_RE, createIdentity, hashCode, identityAgeMinutes, toDisplay } from "./lib/identity";
+import { CODE_COOKIE, CODE_RE, createIdentity, hashCode, identityAgeMinutes, toDisplay, type IdentityRow } from "./lib/identity";
 import { displayAuthor, formatCount } from "./lib/format";
 import { levelFromPosts } from "./lib/level";
+import type { Identity } from "./lib/types";
 import { generateCaptcha, verifyCaptcha } from "./lib/captcha";
 import { ipRateLimit, ipRateRecord, riskCheck, riskRecord } from "./lib/risk";
 import { MOD_COOKIE, createModSession, timingSafeEqualStr, verifyModSession } from "./lib/modauth";
@@ -411,10 +413,17 @@ app.post("/hug", async (c) => {
   return c.json(result);
 });
 
+// 免签发路径（P8-2）或中间件异常时 identity 可能缺失——404/500 页用占位身份渲染顶栏，保证兜底页自身不 500
+const FALLBACK_ME: Identity = { displayNo: "0000", joinDays: 1, totalPosts: 0 };
+const pageMe = (c: Context<AppEnv>): Identity => {
+  const row = c.get("identity") as IdentityRow | undefined;
+  return row ? toDisplay(row) : FALLBACK_ME;
+};
+
 // 温柔 404（S22：完整页面）
 app.notFound((c) =>
   c.html(
-    <Layout title="找不到啦" me={toDisplay(c.get("identity"))}>
+    <Layout title="找不到啦" me={pageMe(c)}>
       <p class="crumb">空山 › 迷路了</p>
       <EmptyState
         title="这里还很安静"
@@ -431,7 +440,7 @@ app.notFound((c) =>
 app.onError((err, c) => {
   console.error("[error]", err.message);
   return c.html(
-    <Layout title="出了点小状况" me={toDisplay(c.get("identity"))}>
+    <Layout title="出了点小状况" me={pageMe(c)}>
       <p class="crumb">空山 › 出了点小状况</p>
       <EmptyState
         title="风太大，吹乱了一页"

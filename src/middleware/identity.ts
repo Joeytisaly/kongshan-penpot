@@ -8,6 +8,11 @@ import { createIdentity, CODE_COOKIE, type IdentityRow } from "../lib/identity";
 export const COOKIE_NAME = "ks_id";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 年
 
+// 免签发路径（P8-2）：robots.txt 是静态资产（本就不经 Worker，列此兜底）；/favicon.ico 无资产
+// 文件会落入 Worker 404。这些请求无身份语义，跳过查询与签发，防 identities 表被无 Cookie 客户端
+// 灌大。命中路径的请求不带 identity——notFound/onError 已做占位兜底
+const SKIP_ISSUE_PATHS = new Set(["/robots.txt", "/favicon.ico"]);
+
 /** 身份 Cookie 公共参数 */
 export const cookieOpts = {
   httpOnly: true, sameSite: "Lax" as const, path: "/", maxAge: COOKIE_MAX_AGE,
@@ -16,6 +21,7 @@ export const cookieOpts = {
 type Ctx = { Bindings: Env; Variables: { identity: IdentityRow } };
 
 export const identityMiddleware: MiddlewareHandler<Ctx> = async (c, next) => {
+  if (SKIP_ISSUE_PATHS.has(c.req.path)) return next();
   const cookieId = getCookie(c, COOKIE_NAME);
   if (cookieId) {
     const row = await c.env.DB.prepare(

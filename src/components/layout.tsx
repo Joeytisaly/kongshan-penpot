@@ -27,6 +27,8 @@ export const Layout: FC<PropsWithChildren<{ title: string; activeNav?: string; m
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <meta name="robots" content="noindex,nofollow" />
       <title>{title} · 空山</title>
+      {/* data-URI favicon（P8-2）：浏览器不再默认请求 /favicon.ico（该路径会落入 Worker 404 并触发身份签发） */}
+      <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%232F6B4F'/%3E%3Ccircle cx='16' cy='13' r='6' fill='%231E4A36'/%3E%3C/svg%3E" />
       <link rel="stylesheet" href="/tokens.css" />
       <link rel="stylesheet" href="/app.css" />
     </head>
