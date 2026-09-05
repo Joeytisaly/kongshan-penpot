@@ -3,6 +3,7 @@
 // P0 的 mock.ts 退役后，本文件是页面唯一数据来源
 import type { Board, Floor, HotItem, Mood, MyThread, Notice, Thread } from "../lib/types";
 import { displayAuthor, ageMinutes, formatCount, formatDateTime, formatRelativeTime } from "../lib/format";
+import { levelFromPosts } from "../lib/level";
 import { judgeContent } from "../lib/words";
 import { cached } from "../lib/cache";
 
@@ -144,11 +145,29 @@ export interface ThreadDetail {
   related: Array<[string, string]>;
 }
 
+/** 楼层作者等级（P7-2）：identities.level 签发后从不更新，改由发言数（published 帖+回）
+ *  经 levelFromPosts 实时计算（等级阈值唯一事实来源 lib/level.ts）。
+ *  一次查询覆盖全楼参与作者（楼主 + 已见楼层作者），避免逐行相关子查询。 */
+async function getAuthorLevels(db: D1Database, threadId: string): Promise<Map<string, string>> {
+  const { results } = await db.prepare(`
+    SELECT i.id, i.display_no,
+      (SELECT COUNT(*) FROM threads tt WHERE tt.identity_id = i.id AND tt.status='published')
+      + (SELECT COUNT(*) FROM replies rr WHERE rr.identity_id = i.id AND rr.status='published') AS speak
+    FROM identities i
+    WHERE i.id IN (
+      SELECT identity_id FROM threads WHERE id = ?
+      UNION
+      SELECT identity_id FROM replies WHERE thread_id = ? AND status='published'
+    )
+  `).bind(threadId, threadId).all<{ id: string; display_no: number; speak: number }>();
+  return new Map(results.map((r) => [r.id, r.display_no === 0 ? "洞务" : levelFromPosts(r.speak).level]));
+}
+
 export async function getThreadDetail(db: D1Database, threadId: string, identityId: string): Promise<ThreadDetail | null> {
   const t = await db.prepare(`
     SELECT t.id, t.board_id, t.identity_id, t.title, t.content, t.views, t.reply_count, t.hug_count, t.created_at,
       b.slug AS board_slug, b.name AS board_name, b.mood AS board_mood,
-      i.display_no AS author_display, i.level AS author_level
+      i.display_no AS author_display
     FROM threads t
     JOIN boards b ON b.id=t.board_id
     JOIN identities i ON i.id=t.identity_id
@@ -156,25 +175,28 @@ export async function getThreadDetail(db: D1Database, threadId: string, identity
   `).bind(threadId).first<{
     id: string; board_id: string; identity_id: string; title: string; content: string; views: number; reply_count: number;
     hug_count: number; created_at: string; board_slug: string; board_name: string; board_mood: Mood;
-    author_display: number; author_level: string;
+    author_display: number;
   }>();
   if (!t) return null;
 
   const { results: replies } = await db.prepare(`
     SELECT r.id, r.floor, r.identity_id, r.content, r.quote, r.hug_count, r.created_at,
-      i.display_no AS author_display, i.level AS author_level
+      i.display_no AS author_display
     FROM replies r JOIN identities i ON i.id=r.identity_id
     WHERE r.thread_id=? AND r.status='published' ORDER BY r.floor
   `).bind(threadId).all<{
     id: string; floor: number; identity_id: string; content: string; quote: string | null; hug_count: number;
-    created_at: string; author_display: number; author_level: string;
+    created_at: string; author_display: number;
   }>();
+
+  const levelMap = await getAuthorLevels(db, threadId);
 
   const authorNo = String(t.author_display).padStart(4, "0");
   const floors: Floor[] = [
     {
       id: t.id, floorNo: 1, floorLabel: `1楼 · 发表于 ${formatDateTime(t.created_at)}`,
-      author: displayAuthor(t.author_display), authorNo, level: t.author_level,
+      author: displayAuthor(t.author_display), authorNo,
+      level: levelMap.get(t.identity_id) ?? "一叶",
       mood: t.board_mood, isOp: true,
       canDelete: t.identity_id === identityId && ageMinutes(t.created_at) < 10,
       hugCount: t.hug_count, content: t.content,
@@ -183,7 +205,7 @@ export async function getThreadDetail(db: D1Database, threadId: string, identity
       id: r.id, floorNo: r.floor,
       floorLabel: `${r.floor}楼${r.floor === 2 ? " · 沙发" : r.floor === 3 ? " · 板凳" : ""} · 发表于 ${formatDateTime(r.created_at)}`,
       author: displayAuthor(r.author_display), authorNo: String(r.author_display).padStart(4, "0"),
-      level: r.author_level, mood: t.board_mood, isOp: false,
+      level: levelMap.get(r.identity_id) ?? "一叶", mood: t.board_mood, isOp: false,
       canDelete: r.identity_id === identityId && ageMinutes(r.created_at) < 10,
       hugCount: r.hug_count,
       content: r.content, quote: r.quote ?? undefined,

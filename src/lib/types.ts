@@ -64,7 +64,7 @@ export interface Identity {
   displayNo: string; // 如 "8829"
   level: string; // 如 "一叶"
   joinDays: number;
-  totalPosts: number; // 累计发言数（发帖）
+  totalPosts: number; // 累计发言（发帖+回应），与树洞等级同口径；首页路由以实时统计注入（P7-2）
 }
 
 /** 我的帖子行 */

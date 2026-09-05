@@ -49,8 +49,10 @@ app.get("/", async (c) => {
   const [boards, hots, stats, tracks, mystats] = await Promise.all([
     getBoards(c.env.KV, db), getHotThreads(c.env.KV, db), getCommunityStats(db), getMyTracks(db, identity.id), getMyStats(db, identity.id),
   ]);
-  const level = levelFromPosts(mystats.posts + mystats.replies);
-  return c.html(<HomePage me={toDisplay(identity)} boards={boards} hots={hots} stats={stats} tracks={tracks} level={level} />);
+  const speakTotal = mystats.posts + mystats.replies;
+  const level = levelFromPosts(speakTotal);
+  // 累计发言与等级同口径（发帖+回应，实时统计）——post_count 只计发帖且含历史口径差（P7-2）
+  return c.html(<HomePage me={{ ...toDisplay(identity), totalPosts: speakTotal }} boards={boards} hots={hots} stats={stats} tracks={tracks} level={level} />);
 });
 
 app.get("/b/:slug", async (c) => {
