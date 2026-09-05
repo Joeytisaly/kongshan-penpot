@@ -25,6 +25,13 @@ export function kvStub() {
       puts.push({ key, value, opts });
     }),
     delete: vi.fn(async (key: string) => void store.delete(key)),
+    // list：按前缀过滤（P11-3 flushViews 消费）；stub 键数远小于真实 1000 分页上限，
+    // 单页返回 list_complete=true（游标分页行为由真实 KV 语义保证）
+    list: vi.fn(async (opts?: { prefix?: string; cursor?: string }) => {
+      const prefix = opts?.prefix ?? "";
+      const keys = [...store.keys()].filter((k) => k.startsWith(prefix)).sort().map((name) => ({ name }));
+      return { keys, list_complete: true, cursor: undefined };
+    }),
     dump: store,
     puts,
   };

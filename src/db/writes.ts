@@ -207,29 +207,44 @@ export async function toggleFavorite(
 }
 
 /** 浏览计数（KV 累积，Cron 定时落库） */
-const VIEW_KEY = (id: string) => `views:${id}`;
+const VIEW_PREFIX = "views:";
+const VIEW_KEY = (id: string) => `${VIEW_PREFIX}${id}`;
 
 export async function bumpViews(kv: KVNamespace, threadId: string): Promise<void> {
   await kv.put(VIEW_KEY(threadId), String((Number(await kv.get(VIEW_KEY(threadId))) || 0) + 1));
 }
 
 /** Cron：把 KV 累积的浏览数批量写回 D1 并清空。
- *  P10-5：kv.list 游标循环——单次 list 上限 1000 键，>1000 时逐页取完 */
+ *  P10-5：kv.list 游标循环——单次 list 上限 1000 键，>1000 时逐页取完。
+ *  P11-3：分批处理（每批 FLUSH_BATCH 键，D1 用 batch 合并为一次调用），单次运行上限
+ *  FLUSH_MAX_KEYS——Workers 免费版每请求 50 子请求预算，每键 get+delete 加逐条 UPDATE
+ *  ≈3 次，键一多即中途失败（丢计数/双计数）。超限的键留在 KV 给下一个 cron 周期
+ *  （10 分钟后），views 是装饰性数字，延迟可容忍 */
+const FLUSH_BATCH = 10;
+const FLUSH_MAX_KEYS = 20;
+
 export async function flushViews(kv: KVNamespace, db: D1Database): Promise<number> {
-  let flushed = 0;
+  const names: string[] = [];
   let cursor: string | undefined = undefined;
   do {
     const list: { keys: Array<{ name: string }>; list_complete: boolean; cursor?: string } =
-      await kv.list({ prefix: "views:", cursor });
-    await Promise.all(list.keys.map(async (k) => {
-      const n = Number(await kv.get(k.name)) || 0;
-      const threadId = k.name.slice("views:".length);
-      await db.prepare("UPDATE threads SET views = views + ? WHERE id = ?").bind(n, threadId).run();
-      await kv.delete(k.name);
-    }));
-    flushed += list.keys.length;
+      await kv.list({ prefix: VIEW_PREFIX, cursor });
+    names.push(...list.keys.map((k) => k.name));
     cursor = list.list_complete ? undefined : list.cursor;
-  } while (cursor);
+  } while (cursor && names.length < FLUSH_MAX_KEYS);
+
+  let flushed = 0;
+  for (let i = 0; i < names.length && i < FLUSH_MAX_KEYS; i += FLUSH_BATCH) {
+    const chunk = names.slice(i, i + FLUSH_BATCH);
+    const pairs = await Promise.all(
+      chunk.map(async (n) => [n, Number(await kv.get(n)) || 0] as const),
+    );
+    await db.batch(pairs.map(([n, v]) =>
+      db.prepare("UPDATE threads SET views = views + ? WHERE id = ?").bind(v, n.slice(VIEW_PREFIX.length)),
+    ));
+    await Promise.all(chunk.map((n) => kv.delete(n)));
+    flushed += chunk.length;
+  }
   return flushed;
 }
 

@@ -87,19 +87,20 @@ export async function getThreads(db: D1Database, boardSlug: string, page = 1, pa
     db.prepare(`SELECT COUNT(*) AS n ${where}`).bind(boardSlug).first<{ n: number }>(),
   ]);
 
-  // 每帖最后回复人/时间
+  // 每帖最后回复人/时间（P11-3：窗口函数每帖取一行——原实现把当页帖子的全部楼层
+  // 拉回 JS 再按序去重，热帖千楼时一次列表页读数万行）
   const lastMap = new Map<string, { user: string; time: string }>();
   if (rows.length > 0) {
     const ph = rows.map(() => "?").join(",");
     const { results: lrs } = await db.prepare(`
-      SELECT r.thread_id, i.display_no AS display, r.created_at AS at
-      FROM replies r JOIN identities i ON i.id=r.identity_id
-      WHERE r.thread_id IN (${ph}) AND r.status='published'
-      ORDER BY r.created_at DESC
+      SELECT thread_id, display, at FROM (
+        SELECT r.thread_id, i.display_no AS display, r.created_at AS at,
+          ROW_NUMBER() OVER (PARTITION BY r.thread_id ORDER BY r.created_at DESC) AS rn
+        FROM replies r JOIN identities i ON i.id = r.identity_id
+        WHERE r.thread_id IN (${ph}) AND r.status='published'
+      ) WHERE rn = 1
     `).bind(...rows.map((r) => r.id)).all<{ thread_id: string; display: number; at: string }>();
-    for (const lr of lrs) {
-      if (!lastMap.has(lr.thread_id)) lastMap.set(lr.thread_id, { user: displayAuthor(lr.display), time: formatRelativeTime(lr.at) });
-    }
+    for (const lr of lrs) lastMap.set(lr.thread_id, { user: displayAuthor(lr.display), time: formatRelativeTime(lr.at) });
   }
 
   const totalN = total?.n ?? 0;
@@ -530,12 +531,14 @@ export async function isFavorited(db: D1Database, identityId: string, threadId: 
 
 /* ========== 我的树洞 · 本周数据 ========== */
 export async function getWeekStats(db: D1Database, identityId: string): Promise<Array<[string, string]>> {
+  // 「收到抱抱」含帖子与楼层两路（P11-3：原只数 threads.hug_count，与 getMyStats 口径不一）
   const r = await db.prepare(`
     SELECT
       (SELECT COUNT(*) FROM threads WHERE identity_id=? AND status='published' AND created_at >= datetime('now','-7 days')) +
       (SELECT COUNT(*) FROM replies WHERE identity_id=? AND status='published' AND created_at >= datetime('now','-7 days')) AS speaks,
-      (SELECT COALESCE(SUM(hug_count),0) FROM threads WHERE identity_id=? AND status='published' AND created_at >= datetime('now','-7 days')) AS hugs
-  `).bind(identityId, identityId, identityId).first<{ speaks: number; hugs: number }>();
+      (SELECT COALESCE(SUM(hug_count),0) FROM threads WHERE identity_id=? AND status='published' AND created_at >= datetime('now','-7 days'))
+      + (SELECT COALESCE(SUM(hug_count),0) FROM replies WHERE identity_id=? AND status='published' AND created_at >= datetime('now','-7 days')) AS hugs
+  `).bind(identityId, identityId, identityId, identityId).first<{ speaks: number; hugs: number }>();
   return [
     ["本周发言", `${r?.speaks ?? 0} 次`],
     ["收到抱抱", formatCount(r?.hugs ?? 0)],

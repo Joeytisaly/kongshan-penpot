@@ -81,6 +81,8 @@ CREATE TABLE threads (
 );
 CREATE INDEX idx_threads_board ON threads(board_id, status, pinned DESC, last_reply_at DESC);
 CREATE INDEX idx_threads_hot ON threads(status, hug_count DESC);
+-- 0005 追加（P11-3）：「我的树洞」与楼层等级实时统计按身份过滤
+CREATE INDEX idx_threads_identity ON threads(identity_id, status, created_at DESC);
 
 CREATE TABLE replies (
   id TEXT PRIMARY KEY, thread_id TEXT NOT NULL REFERENCES threads(id),
@@ -92,6 +94,8 @@ CREATE TABLE replies (
   created_at TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_replies_thread ON replies(thread_id, floor);
+-- 0005 追加（P11-3）：同上
+CREATE INDEX idx_replies_identity ON replies(identity_id, status, created_at DESC);
 
 CREATE TABLE hugs (
   id TEXT PRIMARY KEY,
