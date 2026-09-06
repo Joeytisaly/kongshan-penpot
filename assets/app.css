@@ -17,7 +17,12 @@ body {
 }
 a { color: var(--primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
-main.container { max-width: 1312px; margin: 0 auto; padding: 0 0 40px; flex: 1 0 auto; }
+/* P17-5 贴底页脚：短内容页（通知/搜索/404/登录）footer 之前悬在内容后、下方露出大片底色，
+   flex 列 + main 伸展让页脚始终沉底；长内容页不受影响。
+   ⚠️ width:100% 必须显式声明——flex 列布局中横向 auto 边距（margin:0 auto）优先级高于
+   stretch，无显式宽度时 main 会按 fit-content 收缩再居中（2026-09-06 宽视口回归：
+   1855px 下容器塌缩至 282px，仅 >1312px 视口 + 内容窄的页面显现，1440 终检未暴露） */
+main.container { max-width: 1312px; width: 100%; margin: 0 auto; padding: 0 0 40px; flex: 1 0 auto; }
 
 /* ===== 顶栏（6 页共用） ===== */
 .topbar {
