@@ -39,6 +39,9 @@ describe("formatRelativeTime（UTC 解析）", () => {
   it("无法解析返回空串", () => {
     expect(formatRelativeTime("garbage")).toBe("");
   });
+  it("ISO 存量格式兼容（P17-3：P4-2 sqliteNow 统一前写入的行）", () => {
+    expect(formatRelativeTime(new Date(Date.now() - 5 * 60_000).toISOString())).toBe("5 分钟前");
+  });
 });
 
 describe("formatDateTime（P11-1：Asia/Shanghai 渲染，机器时区无关）", () => {
@@ -56,6 +59,11 @@ describe("formatDateTime（P11-1：Asia/Shanghai 渲染，机器时区无关）"
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-05T16:30:00Z")); // 上海 09-06 00:30
     expect(formatDateTime("2026-09-05 17:00:00")).toBe("今天 01:00"); // 上海 09-06 01:00
+  });
+  it("ISO 存量格式兼容（P17-3）", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-05T15:00:00Z"));
+    expect(formatDateTime("2026-09-05T10:00:00.000Z")).toBe("今天 18:00");
   });
   it("UTC 同日但上海已跨日 → 显示次日日期（旧实现误判「今天」）", () => {
     vi.useFakeTimers();

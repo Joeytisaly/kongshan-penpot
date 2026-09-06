@@ -96,11 +96,11 @@ app.get("/t/:id", async (c) => {
   if (!detail) return c.notFound();
   const favorited = await isFavorited(c.env.DB, identity.id, c.req.param("id"));
   const unread = await getUnreadCount(c.env.DB, identity.id);
-  const error = c.req.query("err") ? "一口气说了好多啦。歇一分钟，再继续说吧。" : undefined;
   // P9-1：动作端点回跳提示条（举报确认 / 抱抱、收藏、举报失败）
   let actionNotice: { kind: "warm" | "error"; text: string } | undefined;
   if (c.req.query("first")) actionNotice = { kind: "warm", text: "这是你的第一个树洞。去「我的树洞」抄写身份码吧——凭它可以随时找回匿名说话的自己。" };
   else if (c.req.query("reported")) actionNotice = { kind: "warm", text: "谢谢你的守护，洞务组会看到这条举报的。" };
+  else if (c.req.query("reportgone")) actionNotice = { kind: "warm", text: "这条心事已经不在树洞了，谢谢你的守护。" };
   else if (c.req.query("hugerr")) actionNotice = { kind: "error", text: "抱抱没有送到，再试一次。" };
   else if (c.req.query("faverr")) actionNotice = { kind: "error", text: "收藏没有成功，再试一次。" };
   else if (c.req.query("reporterr")) actionNotice = { kind: "error", text: "操作有点频繁啦，休息一下再试试。" };
@@ -121,7 +121,7 @@ app.get("/t/:id", async (c) => {
   }
   // 浏览计数：KV 累积，Cron 每 10 分钟落库
   c.executionCtx.waitUntil(bumpViews(c.env.KV, c.req.param("id")));
-  return c.html(<ThreadPage me={toDisplay(identity)} detail={detail} favorited={favorited} onlyOp={onlyOp} unread={unread} error={error} actionNotice={actionNotice} quotePreview={quotePreview} quoteId={quoteId} replyTargetPreview={replyPreview} replyTargetId={replyTargetId} />);
+  return c.html(<ThreadPage me={toDisplay(identity)} detail={detail} favorited={favorited} onlyOp={onlyOp} unread={unread} actionNotice={actionNotice} quotePreview={quotePreview} quoteId={quoteId} replyTargetPreview={replyPreview} replyTargetId={replyTargetId} />);
 });
 
 // 收藏 toggle（P9-1：回跳来源页；P10-3：动作限流）
@@ -222,10 +222,10 @@ app.get("/search", async (c) => {
 // 精华区（P4-4：导航已有入口，落地列表页）
 app.get("/essence", async (c) => {
   const identity = c.get("identity");
-  const [threads, unread] = await Promise.all([
+  const [{ items, total }, unread] = await Promise.all([
     getEssenceThreads(c.env.DB), getUnreadCount(c.env.DB, identity.id),
   ]);
-  return c.html(<EssencePage me={toDisplay(identity)} threads={threads} unread={unread} />);
+  return c.html(<EssencePage me={toDisplay(identity)} threads={items} total={total} unread={unread} />);
 });
 
 // 身份码登录：GET 表单 / POST 验证（POST 限频：每 IP-HMAC 5 次/小时，防爆破——ARCHITECTURE.md §2）
@@ -322,7 +322,9 @@ app.post("/report", async (c) => {
   const targetType = body.type === "reply" ? "reply" : "thread";
   const targetId = String(body.target ?? "");
   if (!targetId) return c.redirect(back);
-  await insertReport(c.env.KV, c.env.DB, targetType, targetId, String(body.reason ?? "").trim().slice(0, 100));
+  const r = await insertReport(c.env.KV, c.env.DB, targetType, targetId, String(body.reason ?? "").trim().slice(0, 100));
+  // P16-1：目标不存在/不可见不再落库，用独立提示位（reporterr 已被限频文案占用，混用会误报原因）
+  if (!r.ok) return c.redirect(withQuery(back, "reportgone=1"));
   return c.redirect(withQuery(back, "reported=1"));
 });
 
@@ -343,11 +345,13 @@ app.post("/delete", async (c) => {
 
 // 站务：MOD_PASS 密码登录（P8-1：限频 + 签名会话令牌，原明文 cookie 方案退役）+ 待审/举报队列
 app.get("/mod", async (c) => {
-  const [pendingQ, reportsQ, actions, unread] = await Promise.all([
-    getPendingThreads(c.env.DB), getOpenReports(c.env.DB), getRecentModActions(c.env.DB),
-    getUnreadCount(c.env.DB, c.get("identity").id),
-  ]);
+  // P16-2：鉴权前移——未登录只渲染登录页，三队列不再查询（原实现未登录也并行拉全队列：
+  // 数据出库仅不渲染，白耗 D1 且待审/举报内容离开数据库边界）
   const authed = await verifyModSession(getCookie(c, MOD_COOKIE), c.env.MOD_PASS);
+  const unread = await getUnreadCount(c.env.DB, c.get("identity").id);
+  const [pendingQ, reportsQ, actions] = authed
+    ? await Promise.all([getPendingThreads(c.env.DB), getOpenReports(c.env.DB), getRecentModActions(c.env.DB)])
+    : [{ items: [], total: 0 }, { items: [], total: 0 }, []];
   return c.html(<ModPage me={toDisplay(c.get("identity"))} authed={authed}
     pending={pendingQ.items} pendingTotal={pendingQ.total}
     reports={reportsQ.items} reportsTotal={reportsQ.total}

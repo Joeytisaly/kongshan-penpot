@@ -9,10 +9,15 @@ body {
   font-size: var(--fs-body);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  /* P17-5 贴底页脚：短内容页（通知/搜索/404/登录）footer 之前悬在内容后、下方露出大片底色，
+     flex 列 + main 伸展让页脚始终沉底；长内容页不受影响 */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 a { color: var(--primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
-main.container { max-width: 1312px; margin: 0 auto; padding: 0 0 40px; }
+main.container { max-width: 1312px; margin: 0 auto; padding: 0 0 40px; flex: 1 0 auto; }
 
 /* ===== 顶栏（6 页共用） ===== */
 .topbar {
@@ -400,8 +405,13 @@ button.notice-jump:hover .notice-main { text-decoration: underline; }
 .mtab-radio { display: none; }
 .mtab-radio:checked + .mine-tab { color: var(--primary); font-weight: 600; border-bottom: 3px solid var(--primary); }
 .mtab-panel { display: none; width: 100%; order: 3; }
-.mtab-radio:checked + .mine-tab + .mtab-panel,
-.mtab-radio:checked + .mine-tab ~ .mtab-panel { display: block; }
+/* P17-2：按 id 精确配对面板——原 `.mtab-radio:checked + .mine-tab ~ .mtab-panel` 的通用
+   兄弟选择器会把选中 radio 之后的【全部】面板都显示出来（三段空态堆叠即此根因；
+   有数据时被「内容都在」掩盖，P15 演示数据退场后空态堆叠才显形）。精确配对后
+   同一时刻只显示当前 tab 的面板 */
+#mtab-pub:checked ~ .mtab-panel[data-for="mtab-pub"],
+#mtab-rep:checked ~ .mtab-panel[data-for="mtab-rep"],
+#mtab-fav:checked ~ .mtab-panel[data-for="mtab-fav"] { display: block; }
 .mine-empty { padding: 24px 0; color: var(--text-2); font-size: var(--fs-list); }
 .mine-row { display: flex; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--border); color: var(--text); font-size: var(--fs-body); }
 .mine-row:last-child { border-bottom: none; }
@@ -458,11 +468,23 @@ button.notice-jump:hover .notice-main { text-decoration: underline; }
 
 /* 手机：紧凑布局，帖子列表两行式 */
 @media (max-width: 560px) {
-  .topbar { height: 56px; padding: 0 12px; gap: 10px; }
-  .logo-text { font-size: 22px; }
-  .search { height: 32px; padding: 0 12px; }
-  .topbar-actions { gap: 10px; }
+  /* P17-1 顶栏两行化：第一行 logo+动作组（整词显示不逐字换行），第二行搜索框独占整行。
+     原单行布局三项互相挤压，375 下 logo 竖排、菜单逐字换行、搜索框缩成图标
+     （P12-1 顶栏增加「找回身份」后可用宽度告罄，当时未回归 375 断点——P6-3 验收时仅三个菜单项） */
+  .topbar { height: auto; min-height: 56px; flex-wrap: wrap; padding: 8px 12px; row-gap: 8px; }
+  .logo { flex: none; }
+  .logo-text { font-size: 22px; white-space: nowrap; }
+  .topbar-actions { gap: 10px; flex-wrap: wrap; row-gap: 4px; }
+  .topbar-actions a, .topbar-actions button, .topbar-actions span { white-space: nowrap; }
+  .topbar-btn { white-space: nowrap; }
+  .search { order: 10; flex: 1 1 100%; min-width: 0; height: 32px; padding: 0 12px; }
   .avatar { width: 28px; height: 28px; }
+
+  /* P17-1：chips 与按钮按整词换行（此前 375 下筛选 chips/「重置身份」逐字竖排；容器本身可换行，不受影响） */
+  .board-chip { white-space: nowrap; }
+  .btn { white-space: nowrap; }
+  /* chips 整词化后整行变宽，容器必须允许整片换行（通知页 4 chips 在 375 单行放不下） */
+  .notice-tabs { flex-wrap: wrap; row-gap: 8px; }
 
   /* 帖子列表两行式：标题整行，作者/回复查看/时间第二行；表头随之隐藏 */
   .thread-head { display: none; }

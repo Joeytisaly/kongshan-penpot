@@ -11,7 +11,8 @@ import { hugNotifyOnce, notifyRateCap } from "../lib/risk";
 const sqliteNow = () => new Date().toISOString().slice(0, 19).replace("T", " ");
 import { judgeContent } from "../lib/words";
 
-/** 内容判定后写入帖子：pending 进待审 / block 拒绝 / self-harm 正常发布 */
+/** 内容判定后写入帖子：pending 进待审 / block 拒绝 / self-harm 正常发布。
+ *  返回 pending 供调用方复用（P16-4：判定一次、两处消费，消灭 createThread 的重复判定） */
 async function insertThread(
   db: D1Database,
   id: string,
@@ -20,16 +21,16 @@ async function insertThread(
   title: string,
   content: string,
   now: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; pending: boolean } | { ok: false; error: string }> {
   const verdict = judgeContent(title + content);
   if (verdict === "block") {
     return { ok: false, error: "这个话题树洞无法承接。如果遇到困难，请拨打 12356 心理援助热线。" };
   }
-  const status = verdict === "pending" ? "pending" : "published";
+  const pending = verdict === "pending";
   await db.prepare(
     "INSERT INTO threads (id, board_id, identity_id, title, content, status, created_at, last_reply_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-  ).bind(id, boardId, identityId, title, content, status, now, now).run();
-  return { ok: true };
+  ).bind(id, boardId, identityId, title, content, pending ? "pending" : "published", now, now).run();
+  return { ok: true, pending };
 }
 
 /** 通知写入：回复/抱抱/站务三类，payload 为展示摘要（JSON）。
@@ -71,7 +72,7 @@ export async function createThread(
   // P11-6：post_count 死列已随 0007 移除（只写不读）——发言数由真实表实时计算（P7-2），
   // 这里只维护最近活跃时间
   await db.prepare("UPDATE identities SET last_seen_at = datetime('now') WHERE id = ?").bind(identityId).run();
-  return { ok: true, id, pending: judgeContent(title + content) === "pending" };
+  return { ok: true, id, pending: inserted.pending };
 }
 
 /** 回复：楼层号自增（事务内 max+1），同步回复数/最后回复时间，可选引用；违规词直接拒绝。

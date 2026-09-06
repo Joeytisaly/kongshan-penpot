@@ -19,14 +19,20 @@ async function logAction(
   await bustHomeAggregates(kv);
 }
 
-/** 举报落库 → 统计未决数 → 达 3 次自动隐藏目标。返回未决举报数与是否已隐藏 */
+/** 举报落库 → 统计未决数 → 达 3 次自动隐藏目标。返回未决举报数与是否已隐藏。
+ *  目标必须存在且 published（P16-1）：原实现无校验，任意 target 字符串都能插 reports
+ *  行（灌表向量，与 P11-2 toggleHug 同族漏项）；hidden/pending/deleted 均不可举报 */
 export async function insertReport(
   kv: KVNamespace,
   db: D1Database,
   targetType: "thread" | "reply",
   targetId: string,
   reason: string,
-): Promise<{ openCount: number; hidden: boolean }> {
+): Promise<{ ok: true; openCount: number; hidden: boolean } | { ok: false; error: string }> {
+  const target = targetType === "thread"
+    ? await db.prepare("SELECT id FROM threads WHERE id = ? AND status='published'").bind(targetId).first<{ id: string }>()
+    : await db.prepare("SELECT id FROM replies WHERE id = ? AND status='published'").bind(targetId).first<{ id: string }>();
+  if (!target) return { ok: false, error: "这条心事已经不在树洞了。" };
   await db.prepare(
     "INSERT INTO reports (id, target_type, target_id, reason) VALUES (?, ?, ?, ?)",
   ).bind(crypto.randomUUID(), targetType, targetId, reason).run();
@@ -42,7 +48,7 @@ export async function insertReport(
     ).bind(targetId).run();
     await logAction(kv, db, "auto-hide", targetType, targetId);
   }
-  return { openCount, hidden: openCount >= 3 };
+  return { ok: true, openCount, hidden: openCount >= 3 };
 }
 
 /** 通知全部已读 */

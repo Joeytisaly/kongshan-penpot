@@ -17,6 +17,8 @@ export interface ReportItem {
   pinned?: boolean; // 仅帖子：是否已置顶（置顶 toggle 按钮依据，P9-5）
 }
 
+// P16-4 注记：中文 mood 类名与 types.ts Mood 固定 5 值、tokens/app.css 的 .mood-* 及
+// DESIGN.md 情绪色表联动——新增 mood 值需四处同步；此处复用情绪色表达举报目标状态
 const REPORT_STATUS_META: Record<string, { label: string; cls: string }> = {
   published: { label: "展示中", cls: "mood-感悟" },
   hidden: { label: "已隐藏", cls: "mood-难过" },

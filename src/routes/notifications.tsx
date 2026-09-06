@@ -2,6 +2,7 @@
 import type { FC } from "hono/jsx";
 import { Layout } from "../components/layout";
 import { Pagination } from "../components/pagination";
+import { EmptyState } from "../components/empty";
 import type { Identity, Notice } from "../lib/types";
 
 const BUBBLE_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M3.2 2.6h9.6c.9 0 1.6.7 1.6 1.6v5.6c0 .9-.7 1.6-1.6 1.6H8.4L5 14.4v-3H3.2c-.9 0-1.6-.7-1.6-1.6V4.2c0-.9.7-1.6 1.6-1.6z" fill="#2F6B4F"/></svg>`;
@@ -38,8 +39,15 @@ export const NotificationsPage: FC<{ me: Identity; notices: Notice[]; activeType
         ))}
       </div>
       {notices.length === 0 ? (
-        <section class="card notice-empty">
-          <p>这里还很安静。去树洞里说说话吧，回应你的人会在这里出现。</p>
+        // P17-2：统一走 EmptyState 组件（原 notice-empty 裸 p 无样式——卡片塌陷成一条细白条，
+        // 与搜索/精华/404 的空态风格割裂；P15-1 给首页热帖补空态时的同族漏项）
+        <section class="card">
+          <EmptyState
+            title="这里还很安静"
+            desc="还没有消息。去树洞里说说话吧，回应你的人会在这里出现。"
+            href="/new"
+            linkText="去发一个新洞"
+          />
         </section>
       ) : (
         <section class="card notice-list">

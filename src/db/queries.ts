@@ -353,8 +353,12 @@ export async function searchThreads(
   };
 }
 
-/** 精华区：跨版块 essence=1 的帖子，按最后活跃排序 */
-export async function getEssenceThreads(db: D1Database, limit = 50): Promise<Thread[]> {
+/** 精华区：跨版块 essence=1 的帖子，按最后活跃排序。
+ *  P16-4：返回真实总数——原 LIMIT 50 静默截断无提示，超出部分调用方可见「仅显示最近 50 条」 */
+export async function getEssenceThreads(db: D1Database, limit = 50): Promise<{ items: Thread[]; total: number }> {
+  const total = (await db.prepare(
+    "SELECT COUNT(*) AS n FROM threads WHERE status='published' AND essence=1",
+  ).first<{ n: number }>())?.n ?? 0;
   const { results } = await db.prepare(`
     SELECT t.id, t.title, t.reply_count, t.views, t.essence, i.display_no AS author_display,
       COALESCE(t.last_reply_at, t.created_at) AS last_reply_at, t.created_at,
@@ -363,7 +367,7 @@ export async function getEssenceThreads(db: D1Database, limit = 50): Promise<Thr
     WHERE t.status='published' AND t.essence=1
     ORDER BY COALESCE(t.last_reply_at, t.created_at) DESC LIMIT ?
   `).bind(limit).all<ThreadRow & { board_name: string; board_slug: string }>();
-  return results.map((r) => ({
+  const items = results.map((r) => ({
     id: r.id, boardSlug: r.board_slug, boardName: r.board_name,
     title: r.title, author: displayAuthor(r.author_display),
     replyCount: formatCount(r.reply_count), viewCount: formatCount(r.views),
@@ -371,6 +375,7 @@ export async function getEssenceThreads(db: D1Database, limit = 50): Promise<Thr
     lastReplyUser: displayAuthor(r.author_display),
     lastReplyTime: formatRelativeTime(r.last_reply_at ?? r.created_at),
   }));
+  return { items, total };
 }
 
 /** 站务删除确认页的目标摘要（P11-7）：帖子（含待审）取标题+正文，楼层取内容——
@@ -478,6 +483,20 @@ export async function getUnreadCount(db: D1Database, identityId: string): Promis
   return r?.n ?? 0;
 }
 
+/** 通知 payload 解析（P16-3 抽出为纯函数）：损坏的 payload 不再炸整页（原 JSON.parse 无兜底，
+ *  一条坏行即通知页 500）——坏 JSON / 缺 main 一律降级为纯文本行，与 P13-1「旧 payload 无
+ *  threadId 优雅降级」同语义 */
+export function parseNoticePayload(
+  payload: string,
+): { main: string; sub?: string; threadId?: string; floor?: number } {
+  try {
+    const p = JSON.parse(payload) as { main?: string; sub?: string; threadId?: string; floor?: number };
+    return { ...p, main: typeof p.main === "string" ? p.main : "（一条消息，内容已无法显示）" };
+  } catch {
+    return { main: "（一条消息，内容已无法显示）" };
+  }
+}
+
 export async function getNotices(
   db: D1Database,
   identityId: string,
@@ -495,7 +514,7 @@ export async function getNotices(
   `).bind(...bind, pageSize, (page - 1) * pageSize)
     .all<{ id: string; type: string; payload: string; read_at: string | null; created_at: string }>();
   const notices = results.map((n) => {
-    const p = JSON.parse(n.payload) as { main: string; sub?: string; threadId?: string; floor?: number };
+    const p = parseNoticePayload(n.payload);
     return {
       id: n.id, kind: (n.type === "reply" || n.type === "hug" || n.type === "system" ? n.type : "system") as Notice["kind"],
       main: p.main, sub: p.sub ?? "", time: formatRelativeTime(n.created_at), unread: !n.read_at,

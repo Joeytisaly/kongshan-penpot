@@ -4,22 +4,25 @@ import { Layout } from "../components/layout";
 import { EmptyState } from "../components/empty";
 import type { Identity, Thread } from "../lib/types";
 
-export const EssencePage: FC<{ me: Identity; threads: Thread[]; unread?: number }> = ({ me, threads, unread }) => (
+export const EssencePage: FC<{ me: Identity; threads: Thread[]; total: number; unread?: number }> = ({ me, threads, total, unread }) => (
   <Layout title="精华区" activeNav="精华区" me={me} unread={unread}>
     <p class="crumb">空山 › 精华区</p>
     <div class="board-head">
       <div>
         <h1 class="board-title">精华区</h1>
-        <p class="board-slogan">被洞务留下的好心事，值得再读一遍。</p>
+        <p class="board-slogan">被洞务留下的好心事，值得再读一遍。共 {total} 条{total > 50 ? "，仅显示最近 50 条" : ""}。</p>
       </div>
     </div>
     <section class="card thread-table">
-      <div class="thread-head">
-        <span class="col-title">主题</span>
-        <span class="col-author">作者</span>
-        <span class="col-rv">回复 / 查看</span>
-        <span class="col-last">最后回复</span>
-      </div>
+      {/* P17-5：空结果时表头无意义，随之隐藏（同页 EmptyState 承担视觉） */}
+      {threads.length > 0 && (
+        <div class="thread-head">
+          <span class="col-title">主题</span>
+          <span class="col-author">作者</span>
+          <span class="col-rv">回复 / 查看</span>
+          <span class="col-last">最后回复</span>
+        </div>
+      )}
       {threads.length === 0 ? (
         <EmptyState
           title="这里还很安静"

@@ -16,8 +16,14 @@ const IP_REPLY_LIMIT = 30; // 每 IP-HMAC 每小时 30 回复（P12-2：原仅�
 
 const K_THREAD = (id: string) => `risk:thread:${id}`;
 const K_REPLIES = (id: string) => `risk:replies:${id}`;
-const K_IP = (h: string) => `risk:ip:${h}`;
 const K_SALT = (d: string) => `risk:salt:${d}`;
+
+/* ========== 通用 IP-HMAC 限流（举报 / 登录等不依赖身份的场景） ========== */
+
+// P16-4：唯一键构造器前移到键区并统一下文——发帖 IP 限流原走独立的 K_IP(`risk:ip:`)、
+// 回复 IP 限流走 K_IP_SCOPE("reply")（`risk:reply:`），同一概念两套前缀且先用后定义。
+// 现统一经 K_IP_SCOPE 表达（scope="ip"/"reply"），存量键串不变、KV 无迁移负担
+const K_IP_SCOPE = (scope: string, h: string) => `risk:${scope}:${h}`;
 
 /** 每日轮换盐（KV 缓存 24h）：IP 只以 HMAC 形态参与限流，无法反推 */
 async function todaySalt(kv: KVNamespace): Promise<string> {
@@ -70,10 +76,10 @@ export async function riskCheck(
       return { ok: false, reason: "今晚在这台设备上的回应有点多了，歇一歇，树洞明天还在。" };
     }
   }
-  // 4) IP-HMAC 限流：每小时 10 帖
+  // 4) IP-HMAC 限流：每小时 10 帖（键经 K_IP_SCOPE("ip") 构造，串不变：risk:ip:<h>）
   if (action === "thread") {
     const h = await ipHmac(kv, ip);
-    const ipCount = Number(await kv.get(K_IP(h))) || 0;
+    const ipCount = Number(await kv.get(K_IP_SCOPE("ip", h))) || 0;
     if (ipCount >= IP_THREAD_LIMIT) {
       return { ok: false, reason: "今天在这台设备上的新洞有点多了，明天再来吧。" };
     }
@@ -86,8 +92,8 @@ export async function riskRecord(kv: KVNamespace, identityId: string, ip: string
   if (action === "thread") {
     await kv.put(K_THREAD(identityId), String(Date.now()), { expirationTtl: THREAD_INTERVAL * 2 });
     const h = await ipHmac(kv, ip);
-    const n = (Number(await kv.get(K_IP(h))) || 0) + 1;
-    await kv.put(K_IP(h), String(n), { expirationTtl: 3600 });
+    const n = (Number(await kv.get(K_IP_SCOPE("ip", h))) || 0) + 1;
+    await kv.put(K_IP_SCOPE("ip", h), String(n), { expirationTtl: 3600 });
   } else {
     const list = (await kv.get(K_REPLIES(identityId)))?.split(",").map(Number).filter(Boolean) ?? [];
     list.push(Date.now());
@@ -99,10 +105,7 @@ export async function riskRecord(kv: KVNamespace, identityId: string, ip: string
   }
 }
 
-/* ========== 通用 IP-HMAC 限流（举报 / 登录等不依赖身份的场景） ========== */
-
-const K_IP_SCOPE = (scope: string, h: string) => `risk:${scope}:${h}`;
-
+/* ========== 每身份动作限流（抱抱/收藏等轻量写，P10-3：脚本可刷写库与通知） ========== */
 /** 通用 IP-HMAC 频率检查：windowSec 内最多 limit 次（原始 IP 永不落盘）。
  *  与 riskCheck/riskRecord 相同的 check/record 分离模式，调用方自行决定计数时机。 */
 export async function ipRateLimit(

@@ -42,7 +42,7 @@ Cloudflare Worker（Hono + hono/jsx SSR）
 | 通知收件箱保护 | 每收件人每分钟最多 6 条新通知，超出静默丢弃（防换身份灌通知洪峰，与 hugNotifyOnce 互补） | ✓ P12-2 |
 | IP 隐私 | `HMAC(IP, 每日轮换盐)` 限流 10 帖/小时，原始 IP 永不落盘 | ✓ S18 |
 | 关键词分级 | `src/lib/words.ts`：违规词→pending 待审；自伤词→正常发布+12356 横幅；严重词→直接拒绝 | ✓ S19 |
-| 举报 | 达 3 次自动隐藏（status=hidden），进站务队列 | ✓ S19 |
+| 举报 | 目标须存在且 published 才落库（P16-1，防伪造 target 灌表）；达 3 次自动隐藏（status=hidden），进站务队列 | ✓ S19 |
 | 举报限流 | IP-HMAC 5 次/小时（防清 Cookie 换身份刷举报隐藏） | ✓ P4-1 |
 | 登录限频 | 身份码登录 IP-HMAC 5 次/小时，防爆破 | ✓ P4-1 |
 | 用户自助删除 | 发布 10 分钟内可删除自己的帖/楼层（软删 deleted，洞务可恢复；验证码场景时间解析失败从严、删除场景从紧） | ✓ P4-2 |
@@ -159,17 +159,22 @@ CREATE INDEX idx_fav_owner ON favorites(identity_id, created_at DESC);
 | `/favorite` | POST | 收藏（幂等 toggle） | 03/06 |
 | `/report` | POST | 举报（达 3 次自动隐藏；IP-HMAC 5 次/小时限流） | 03 |
 | `/delete` | POST | 用户自助删除（10 分钟内自己的帖/楼层，软删 status=deleted） | 03 |
-| `/notifications` | GET/POST | 消息通知 / 全部已读 | 05 |
+| `/notifications` | GET | 消息通知（`?type=` 筛选，`?page=` 分页） | 05 |
+| `/notifications/read` | POST | 全部已读 | 05 |
+| `/notifications/open` | POST | 单条已读 + 跳转 `/t/:id#floor-N`（P13-1；校验归属） | 05 |
 | `/me` | GET | 我的树洞（含身份码展示） | 06 |
 | `/me/reset` | POST | 重置身份 | 06 |
 | `/me/reset-confirm` | GET | 重置身份确认页（两步式确认，P11-7） | 06 |
 | `/search` | GET | 搜索帖子（标题/正文，published，LIKE 参数化） | — |
-| `/essence` | GET | 精华区（跨版块 essence=1 列表） | — |
+| `/essence` | GET | 精华区（跨版块 essence=1 列表；返回真实总数，超出 50 条提示截断——P16-4） | — |
 | `/login` | GET/POST | 身份码登录（IP-HMAC 5 次/小时限频） | — |
+| `/logout` | POST | 退出（清身份 Cookie 双保险并顺带清 mod cookie；回首页 `?bye=1` 提示，P13-4） | — |
 | `/captcha` | GET | 古诗验证码（内嵌发帖表单，无独立路由） | — |
-| `/mod` | GET/POST | 站务（MOD_PASS 保护：待审队列 + 举报队列，支持隐藏/恢复/删除/加精处置，处置自动关闭未决举报） | — |
+| `/mod` | GET | 站务（MOD_PASS 保护：未登录只渲染登录页；登录后待审队列 + 举报队列 + 处置日志，队列仅登录后查询——P16-2） | — |
+| `/mod/login` | POST | 站务登录（IP-HMAC 5 次/小时限频，签发签名会话令牌——P8-1） | — |
 | `/mod/logout` | POST | 站务退出（清除 mod_auth 会话 cookie，P12-1） | — |
 | `/mod/delete-confirm` | GET | 站务删除确认页（终态删除前展示内容摘要，P11-7） | — |
+| `/mod/approve` `/mod/hide` `/mod/restore` `/mod/delete` `/mod/essence` `/mod/pin` `/mod/report-done` | POST | 站务处置：过审 / 隐藏 / 恢复 / 删除 / 加精 / 置顶 / 举报标记已处理——全部经 logAction 落 mod_actions 流水并失效首页聚合缓存（P13-2/P14-3） | — |
 
 ## 6. 非功能要求
 

@@ -9,10 +9,10 @@ import type { Floor, Identity } from "../lib/types";
 const HEART_ICON = `<svg width="15" height="15" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M8 13.8C4.4 11.4 1.8 9.2 1.8 6.4 1.8 4.3 3.4 2.7 5.4 2.7c1 0 2 .5 2.6 1.3.6-.8 1.6-1.3 2.6-1.3 2 0 3.6 1.6 3.6 3.7 0 2.8-2.6 5-6.2 7.4z" fill="#7A8A80"/></svg>`;
 const BUBBLE_ICON = `<svg width="15" height="15" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M3.2 2.6h9.6c.9 0 1.6.7 1.6 1.6v5.6c0 .9-.7 1.6-1.6 1.6H8.4L5 14.4v-3H3.2c-.9 0-1.6-.7-1.6-1.6V4.2c0-.9.7-1.6 1.6-1.6z" fill="#7A8A80"/></svg>`;
 
-export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boolean; onlyOp?: boolean; unread?: number; error?: string; actionNotice?: { kind: "warm" | "error"; text: string }; quotePreview?: string; quoteId?: string; replyError?: string; replyValue?: string; replyTargetPreview?: string; replyTargetId?: string }> = ({ me, detail, favorited, onlyOp, unread, error, actionNotice, quotePreview, quoteId, replyError, replyValue, replyTargetPreview, replyTargetId }) => (
+export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boolean; onlyOp?: boolean; unread?: number; actionNotice?: { kind: "warm" | "error"; text: string }; quotePreview?: string; quoteId?: string; replyError?: string; replyValue?: string; replyTargetPreview?: string; replyTargetId?: string }> = ({ me, detail, favorited, onlyOp, unread, actionNotice, quotePreview, quoteId, replyError, replyValue, replyTargetPreview, replyTargetId }) => (
   <Layout title={detail.title} activeNav={detail.boardName} me={me} unread={unread}>
     <p class="crumb">空山 › {detail.boardName} › {detail.title}</p>
-    {error && <div class="notice-error" role="status">{error}</div>}
+    {/* P16-4：无写入方的 ?err=1 死分支删除（P14-2 起回复失败一律原页重渲染 replyError，见下方回复框） */}
     {actionNotice && <div class={actionNotice.kind === "warm" ? "notice-warm" : "notice-error"} role="status"><span>{actionNotice.text}</span></div>}
     {detail.selfHarm && (
       <div class="notice-warm">
@@ -22,13 +22,16 @@ export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boo
       </div>
     )}
     <div class="thread-head-area">
+      {/* mood 值固定 5 种（types.ts Mood），中文类名与 tokens/app.css 的 .mood-bg-* 及 DESIGN.md 情绪色表联动——
+          新增 mood 值需三处同步；回退「树洞」保证未知值不裸奔（P16-4 注记） */}
       <span class={`tag mood-bg-${detail.floors[0]?.mood ?? "树洞"}`}>{detail.boardName}</span>
       <h1 class="thread-page-title">{detail.title}</h1>
       <p class="thread-meta">
         {detail.meta} ·
         <a class="op-link" href={onlyOp ? `/t/${detail.id}` : `/t/${detail.id}?op=1`}>
           {onlyOp ? "看全部楼层" : "只看楼主"}
-        </a> ·
+        </a>
+        {/* 收藏表单是块级元素另起一行——此处的分隔点永远悬空（P17-2 走查发现 F12），删去 */}
         <form action="/favorite" method="post" class="fav-form">
           <input type="hidden" name="target" value={detail.id} />
           <input type="hidden" name="return" value={`/t/${detail.id}`} />
@@ -113,7 +116,7 @@ export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boo
           <form action={`/t/${detail.id}/reply`} method="post">
             {quotePreview && <input type="hidden" name="quote" value={quoteId} />}
             {replyTargetPreview && <input type="hidden" name="replyTarget" value={replyTargetId} />}
-            <textarea class="reply-box" name="content" rows={4} placeholder="说点善意的吧，今晚大家都辛苦了…（最多 300 字）" aria-label="快速回复">{replyValue}</textarea>
+            <textarea class="reply-box" name="content" rows={4} placeholder="说点善意的吧，今晚大家都辛苦了……（最多 300 字）" aria-label="快速回复">{replyValue}</textarea>
             <div class="reply-foot">
               <span class="reply-note">回复将以随机身份「洞友 #{me.displayNo}」发出，10 分钟内可删除</span>
               <button type="submit" class="btn reply-btn">匿名回复</button>
@@ -133,12 +136,19 @@ export const ThreadPage: FC<{ me: Identity; detail: ThreadDetail; favorited: boo
               <span class={`part-avatar mood-bg-${p.mood}`} key={p.no}>{p.no}</span>
             ))}
           </div>
-          <p class="side-text">有洞友回应了这棵树</p>
+          <p class="side-text">
+            {detail.participants.length > 0
+              ? "有洞友回应了这棵树"
+              : "还没有人回应这棵树，做第一个说话的人吧。"}
+          </p>
         </section>
         <section class="card-flat side-card">
           <h2 class="card-title">相关树洞</h2>
-          {detail.related.map(([t, n]) => (
-            <p class="board-hot-row"><span class="board-hot-title">· {t}</span><span class="stat-value-dim">{n}</span></p>
+          {/* P17-3：数字补语义标签（同本版热帖）；同版块无其他帖时不再渲染空卡 */}
+          {detail.related.length === 0 ? (
+            <p class="side-text">这个版块还没有别的心事。</p>
+          ) : detail.related.map(([t, n]) => (
+            <p class="board-hot-row"><span class="board-hot-title">· {t}</span><span class="stat-value-dim">{n} 抱抱</span></p>
           ))}
         </section>
         <section class="card-flat side-card">

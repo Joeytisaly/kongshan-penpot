@@ -19,7 +19,9 @@
   --accent: #E8A15C;
   --accent-light: #FBF1E4;
   --text: #26332C;
-  --text-2: #7A8A80;
+  /* P17-4：#7A8A80 → #5E6E64——原值在白卡/米白底上对比度仅约 3.5:1（低于 WCAG AA 4.5:1），
+     且大量用于 11–13px 次级文字；新值实测约 5.0–5.4:1，同灰绿系、层级关系不变 */
+  --text-2: #5E6E64;
   --border: #E5E1D8;
   --input-bg: #FAF9F5;
   --search-bg: #F0EEE7;

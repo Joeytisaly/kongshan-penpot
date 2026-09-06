@@ -44,7 +44,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; activeNav?: string; m
         </a>
         <form class="search" action="/search" method="get">
           <span dangerouslySetInnerHTML={{ __html: SEARCH_ICON }} />
-          <input class="search-input" type="text" name="q" placeholder="搜索树洞里的心事…" maxlength={30} aria-label="搜索树洞里的心事" />
+          <input class="search-input" type="text" name="q" placeholder="搜索树洞里的心事……" maxlength={30} aria-label="搜索树洞里的心事" />
         </form>
         <div class="topbar-actions">
           <span class="avatar">洞</span>

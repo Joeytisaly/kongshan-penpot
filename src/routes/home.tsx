@@ -68,7 +68,7 @@ export const HomePage: FC<{ me: Identity; boards: Board[]; hots: HotItem[]; stat
 
         <section class="card list-card">
           <header class="list-head">
-            <h2 class="card-title">今日热帖</h2>
+            <h2 class="card-title">热帖</h2>
             <a class="more-link" href="/essence">更多 ›</a>
           </header>
           {hots.length === 0 ? (

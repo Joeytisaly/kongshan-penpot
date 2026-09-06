@@ -31,10 +31,21 @@ export function formatCount(n: number): string {
   return n.toLocaleString("en-US");
 }
 
+/** 展示用时间解析（P17-3）：SQLite 'YYYY-MM-DD HH:MM:SS' 先转 ISO 再按 UTC 解析（Workers
+ *  时区恒为 UTC，直接 new Date(带空格串) 会按本机时区）；P4-2 sqliteNow 统一前的存量 ISO 行
+ *  由 Date 原生解析兜底（带 Z 即 UTC）——展示从宽，脏行也显示时间而非空白。
+ *  ⚠️ 仅限展示。风控必须用下方 ageMinutes 的从严单格式解析（identity 的验证码门依赖
+ *  「ISO 脏数据解析失败 → 视为新身份」，P4-1），两个解析器不许合并 */
+function toEpochUTC(dt: string): number {
+  const t = new Date(dt.replace(" ", "T") + "Z").getTime();
+  if (!Number.isNaN(t)) return t;
+  return new Date(dt).getTime();
+}
+
 /** 相对时间：刚刚 / N 分钟前 / N 小时前 / N 天前 / MM-DD（D1 存 UTC，按 UTC 解析；
  *  ≥7 天的日期分支按 Asia/Shanghai 渲染——服务器本地时区在 Workers 上是 UTC，P11-1） */
 export function formatRelativeTime(dt: string): string {
-  const t = new Date(dt.replace(" ", "T") + "Z").getTime();
+  const t = toEpochUTC(dt);
   if (Number.isNaN(t)) return "";
   const diff = Date.now() - t;
   const min = Math.floor(diff / 60_000);
@@ -50,15 +61,17 @@ export function formatRelativeTime(dt: string): string {
 /** 楼层时间：今天 HH:MM / MM-DD HH:MM。
  *  「今天」以上海日界判定（P11-1）：UTC 同日 ≠ 上海同日（北京时间 0–8 点间二者不同） */
 export function formatDateTime(dt: string): string {
-  const t = new Date(dt.replace(" ", "T") + "Z");
-  if (Number.isNaN(t.getTime())) return "";
-  const a = tzParts(t.getTime());
+  const t = toEpochUTC(dt);
+  if (Number.isNaN(t)) return "";
+  const a = tzParts(t);
   const b = tzParts(Date.now());
   return a.ymd === b.ymd ? `今天 ${a.hm}` : `${a.md} ${a.hm}`;
 }
 
-/** 年龄（分钟）：SQLite datetime 格式按 UTC 解析。
- *  解析失败返回 NaN——保守方向由调用方定（验证码场景视为新身份触发验证，删除场景视为超窗拒绝） */
+/** 年龄（分钟）：从严单格式解析——只认 SQLite 'YYYY-MM-DD HH:MM:SS'（按 UTC）。
+ *  ISO 存量行等脏数据解析失败返回 NaN，调用方保守处理：验证码场景视为新身份触发验证
+ *  （P4-1 防线，identity.identityAgeMinutes NaN→0）、删除场景视为超窗拒绝（P4-2）。
+ *  ⚠️ 与展示用的 toEpochUTC 有意分离：风控从严、展示从宽，不许合并 */
 export function ageMinutes(dt: string): number {
   return (Date.now() - new Date(dt.replace(" ", "T") + "Z").getTime()) / 60_000;
 }

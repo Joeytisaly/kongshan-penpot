@@ -113,7 +113,8 @@ export const MePage: FC<{
         <section class="card-flat side-card">
           <h2 class="card-title">树洞等级</h2>
           <p class="level-name">{level.level}</p>
-          <div class="level-track"><div class="level-fill" style={`width:${level.progress}%`} /></div>
+          {/* P17-5：0% 时轨道只是一条孤线像渲染残影（宁缺毋假）——无进度就不渲染轨道，升级条件由下方文案承载 */}
+          {level.progress > 0 && <div class="level-track"><div class="level-fill" style={`width:${level.progress}%`} /></div>}
           <p class="side-text">
             {level.next ? `再发言 ${level.need} 次升级「${level.next}」` : "已至最高等级，树洞与你常相伴。"}
           </p>

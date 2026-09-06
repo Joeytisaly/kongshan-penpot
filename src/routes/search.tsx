@@ -15,12 +15,15 @@ export const SearchPage: FC<{ me: Identity; q: string; threads: Thread[]; page?:
       </div>
     </div>
     <section class="card thread-table">
-      <div class="thread-head">
-        <span class="col-title">主题</span>
-        <span class="col-author">作者</span>
-        <span class="col-rv">回复 / 查看</span>
-        <span class="col-last">最后回复</span>
-      </div>
+      {/* P17-5：空结果时表头无意义，随之隐藏（同页 EmptyState 承担视觉） */}
+      {threads.length > 0 && (
+        <div class="thread-head">
+          <span class="col-title">主题</span>
+          <span class="col-author">作者</span>
+          <span class="col-rv">回复 / 查看</span>
+          <span class="col-last">最后回复</span>
+        </div>
+      )}
       {threads.length === 0 ? (
         <EmptyState
           title="没有找到相关的心事"

@@ -1,4 +1,4 @@
-// 共享分页（P11-7）：窗口化页码，三处消费——版块页 / 通知页 / 搜索页（改动需三页回归）
+// 共享分页（P11-7）：窗口化页码，四处消费——版块页 / 通知页 / 搜索页 / 帖子详情页（P13-3 起，改动需四页回归）
 import type { FC } from "hono/jsx";
 import { pageWindow } from "../lib/pagination";
 

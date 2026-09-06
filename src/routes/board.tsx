@@ -63,12 +63,15 @@ export const BoardPage: FC<{
           <p class="stat-row"><span>主题</span><span class="stat-value">{boardStats.topics}</span></p>
           <p class="stat-row"><span>帖子</span><span class="stat-value">{boardStats.posts}</span></p>
           <p class="stat-row"><span>今日新洞</span><span class="stat-value">{boardStats.today}</span></p>
-          <p class="stat-row"><span>版主</span><span class="stat-value">洞务组</span></p>
+          <p class="stat-row"><span>洞务</span><span class="stat-value">洞务组</span></p>
         </section>
         <section class="card-flat side-card">
           <h2 class="card-title">本版热帖</h2>
-          {hot.map(([t, n]) => (
-            <p class="board-hot-row"><span class="board-hot-title">· {t}</span><span class="stat-value-dim">{n}</span></p>
+          {/* P17-3：数字补语义标签（与首页热帖「N 抱抱」一致，此前裸数字 0 无信息量）；空列表不再渲染空卡 */}
+          {hot.length === 0 ? (
+            <p class="side-text">还没有热帖。第一个抱抱，会在这里出现。</p>
+          ) : hot.map(([t, n]) => (
+            <p class="board-hot-row"><span class="board-hot-title">· {t}</span><span class="stat-value-dim">{n} 抱抱</span></p>
           ))}
         </section>
         <section class="card-flat side-card">
